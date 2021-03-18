@@ -5,6 +5,7 @@
 ### Libraries ----
 library(fpp3)
 library(readxl)
+library(ggfortify)
 
 
 df <- read_xls("../Data/US/Forecasting_economic_data.xls", sheet = 2)
@@ -30,11 +31,44 @@ unemployment <- df  %>%
     mutate(date = as.Date(date))  %>% 
     filter(year(date) >= 1995)   %>% 
     select(date, unemp_level, seasonal_unemp_level)  %>% 
-    tsibble()
+    tsibble(index = date)
 
-# Cross-Validation with step = 8 ----
-unemployment_train_cv <- unemployment %>% 
+
+# Point forecasting accuracy ----
+train <- unemployment  %>% 
+    filter(year(date) < 2019)  %>% 
+    select(date, unemp_level)
+
+fit <- train  %>% 
+    model(  Mean = MEAN(unemp_level)) 
+            ",   
+            Naive = NAIVE(unemp_level),
+            Seasonal_Naive = SNAIVE(unemp_level),
+            Drift = RW(unemp_level ~ drift())) "
+
+fit  %>% 
+
+fit  %>% 
+    forecast(h = 2)  %>% 
+    accuracy(train)
+fc
+
+
+# Cross-Validation with step = 1 ----
+unemployment_train_cv_1 <- unemployment %>% 
     stretch_tsibble(.init = 3, .step = 1)
+
+unemployment_train_cv_3 <- unemployment %>% 
+    stretch_tsibble(.init = 5, .step = 3)
+
+unemployment %>% 
+    model(  Mean = MEAN(unemp_level),
+            Naive = NAIVE(unemp_level),
+            Seasonal_Naive = SNAIVE(unemp_level),
+            Drift = RW(unemp_level ~ drift())) %>% 
+    forecast(h = 8) %>%
+    accuracy()  
+
 
 unemployment %>% 
     ggplot() +
@@ -48,4 +82,5 @@ unemployment %>%
 
 unemployment  %>% 
     model(classical_decomposition(unemp_level, type = "additive"))
+
 
