@@ -85,5 +85,6 @@ unemployment %>%
 unemployment  %>% 
     model(classical_decomposition(unemp_level, type = "additive"))
 
-fc_cv %>% 
-    autoplot(unemployment_train_cv_1, level = NULL)
+autoplot(fc_cv, level = NULL)
+fc_cv
+
