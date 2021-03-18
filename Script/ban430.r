@@ -28,16 +28,18 @@ clear_names <- c(   "date",
 colnames(df) <- clear_names
 
 unemployment <- df  %>% 
-    mutate(date = as.Date(date))  %>% 
+    mutate(date = yearmonth(date))  %>% 
     filter(year(date) >= 1995)   %>% 
-    select(date, unemp_level, seasonal_unemp_level)  %>% 
-    tsibble(index = date)
+    select(date, unemp_level, seasonal_unemp_level)   %>% 
+    as_tsibble(index = date)
 
 
 # Point forecasting accuracy ----
 train <- unemployment  %>% 
     filter(year(date) < 2019)  %>% 
     select(date, unemp_level)
+
+
 
 fit <- train  %>% 
     model(  Mean = MEAN(unemp_level)) 
@@ -46,12 +48,11 @@ fit <- train  %>%
             Seasonal_Naive = SNAIVE(unemp_level),
             Drift = RW(unemp_level ~ drift())) "
 
-fit  %>% 
 
 fit  %>% 
-    forecast(h = 2)  %>% 
+    forecast(h = 8)  %>% 
     accuracy(train)
-fc
+
 
 
 # Cross-Validation with step = 1 ----
