@@ -5,8 +5,8 @@
 ### Libraries ----
 library(fpp3)
 library(readxl)
+library(doParallel)  
 #library(ggfortify)
-
 
 df <- read_xls("../Data/US/Forecasting_economic_data.xls", sheet = 2)
 
@@ -27,51 +27,6 @@ clear_names <- c(   "date",
 
 colnames(df) <- clear_names
 
-unemployment <- df  %>% 
-    mutate(date = yearmonth(date))  %>% 
-    filter(year(date) >= 1995)   %>% 
-    select(date, unemp_level, seasonal_unemp_level)   %>% 
-    tsibble(index = date)
-
-
-# Point forecasting accuracy ----
-train <- unemployment  %>% 
-    filter(year(date) < 2019)  %>% 
-    select(date, unemp_level)
-
-fit <- train  %>% 
-    model(  Mean = MEAN(unemp_level),
-            Naive = NAIVE(unemp_level),
-            Seasonal_Naive = SNAIVE(unemp_level),
-            Drift = RW(unemp_level ~ drift()))
-
-
-fc <- fit %>% 
-    forecast(h = 8)
-
-accuracy_pfa <- accuracy(fc, unemployment)
-
-
-# Cross-Validation with step = 1 ----
-unemployment_train_cv_1 <- unemployment %>%
-    filter(year(date) < 2020)  %>% 
-    stretch_tsibble(.init = 3, .step = 1)
-
-unemployment_train_cv_3 <- unemployment %>% 
-    filter(year(date) < 2020)  %>% 
-    stretch_tsibble(.init = 5, .step = 3)
-
-fit_cv <- unemployment_train_cv_1 %>% 
-    model(  Mean = MEAN(unemp_level),
-            Naive = NAIVE(unemp_level),
-            Seasonal_Naive = SNAIVE(unemp_level ~ lag("year")),
-            Drift = RW(unemp_level ~ drift())) 
-
-fc_cv <- fit_cv %>% 
-    forecast(h = 8)
-
-accuracy_cv <- accuracy(fc_cv, unemployment)
-
 unemployment %>% 
     ggplot() +
     geom_line(aes(x = date, y = unemp_level, col = "Unadjusted seasonal")) +
@@ -85,6 +40,23 @@ unemployment %>%
 unemployment  %>% 
     model(classical_decomposition(unemp_level, type = "additive"))
 
-autoplot(fc_cv, level = NULL)
-fc_cv
+
+
+
+unemployment_2019 <- df  %>% 
+    mutate(date = yearmonth(date))  %>% 
+    filter(year(date) >= 1995 & year(date) <= 2019)   %>% 
+    select(date, unemp_level, seasonal_unemp_level)   
+
+
+unemployment_train <- unemployment  %>% 
+    filter(year(date) <= 2018)  %>% 
+    select(date, unemp_level)
+
+
+###### Summary statistics #########
+unemployment_train  %>% 
+    summarise_at(mean = mean(unemp_level),
+              median = median(unemp_level))
+
 
