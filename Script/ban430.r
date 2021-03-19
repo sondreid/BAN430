@@ -47,9 +47,9 @@ fit <- train  %>%
 
 
 fc <- fit %>% 
-    forecast(h = 8) %> %>% 
-    accuracy(unemployment)
+    forecast(h = 8)
 
+accuracy_pfa <- accuracy(fc, unemployment)
 
 
 # Cross-Validation with step = 1 ----
