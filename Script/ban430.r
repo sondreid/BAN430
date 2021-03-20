@@ -23,20 +23,20 @@ clear_names <- c(   "date",
                     "seasonal_unemp_less_high_school", 
                     "seasonal_unemp_high_school", 
                     "seasonal_unemp_college", 
-                    "unemp_level", 
+                    "unemployed", 
                     "unemp_men" , 
                     "unemp_women", 
                     "unemp_less_high_school",
                     "unemp_high_school",
                     "unemp_college", 
-                    "seasonal_unemp_level")
+                    "seasonal_unemployed")
 
 colnames(df) <- clear_names
 
 # unemployment %>% 
 #     ggplot() +
-#     geom_line(aes(x = date, y = unemp_level, col = "Unadjusted seasonal")) +
-#     geom_line(aes(x = date, y = seasonal_unemp_level, col = "Adjusted seasonal")) +
+#     geom_line(aes(x = date, y = unemployed, col = "Unadjusted seasonal")) +
+#     geom_line(aes(x = date, y = seasonal_unemployed, col = "Adjusted seasonal")) +
 #     labs(   title = "Unemployment in USA",
 #             subtitle = "Seasonal adj. vs non adj.",
 #             y = "Unemployment level",
@@ -44,18 +44,18 @@ colnames(df) <- clear_names
 #     guides(col = guide_legend(title = "Series:")) 
 
 #unemployment  %>% 
-#    model(classical_decomposition(unemp_level, type = "additive"))
+#    model(classical_decomposition(unemployed, type = "additive"))
 
 
 unemployment <- df  %>% 
     mutate(date = yearmonth(date))  %>% 
     filter(year(date) >= 1995 & year(date) <= 2019)   %>% 
-    select(date, unemp_level, seasonal_unemp_level)   
+    select(date, unemployed, seasonal_unemployed)   
 
 
 unemployment_train <- unemployment  %>% 
     filter(year(date) <= 2018)  %>% 
-    select(date, unemp_level, seasonal_unemp_level)
+    select(date, unemployed, seasonal_unemployed)
 
 
 
@@ -68,12 +68,12 @@ unemployment_train <- unemployment  %>%
 unemployment_train  %>% 
     mutate(month = lubridate::month(date))  %>%
     group_by(month)  %>% 
-    summarise(  min = min(unemp_level),
-                "25%-percentil" = quantile(unemp_level, 0.25),
-                mean = mean(unemp_level),
-                median = median(unemp_level),
-                "75%-percentil" = quantile(unemp_level, 0.75),
-                max = max(unemp_level)) 
+    summarise(  min = min(unemployed),
+                "25%-percentil" = quantile(unemployed, 0.25),
+                mean = mean(unemployed),
+                median = median(unemployed),
+                "75%-percentil" = quantile(unemployed, 0.75),
+                max = max(unemployed)) 
     
 
 
@@ -82,13 +82,13 @@ unemployment_train_ts <-  unemployment_train %>%
 
 #Seasonal subseries
 unemployment_train_ts  %>%  
-    gg_subseries(unemp_level) +
+    gg_subseries(unemployed) +
     labs(x = "Month", y = "Unemployment level")
 
 # Train series
 unemployment_train_ts   %>%  
     ggplot() +
-    geom_line(aes(x = date, y = unemp_level, col = "Training data")) +
+    geom_line(aes(x = date, y = unemployed, col = "Training data")) +
     labs(   title = "Unemployment",
             subtitle = "Train [1995-2018]",
             y = "Unemployment level",
@@ -98,59 +98,59 @@ unemployment_train_ts   %>%
 
 
 ## SEAS X13
-x13_seas <- seas(ts(unemployment_train %>% select(unemp_level), start = c("1995"), frequency = 12))
+x13_seas <- seas(ts(unemployment_train %>% select(unemployed), start = c("1995"), frequency = 12))
 
-x11_seas <- seas(ts(unemployment_train %>% select(unemp_level), start = c("1995"), frequency = 12), x11 = "")
+x11_seas <- seas(ts(unemployment_train %>% select(unemployed), start = c("1995"), frequency = 12), x11 = "")
 
 #Convert results to dataframe
 x13_dcmp <- data.frame(x13_seas) %>% 
-    left_join(select(unemployment_train_ts, unemp_level), by = "date") %>% 
+    left_join(select(unemployment_train_ts, unemployed), by = "date") %>% 
     select(-adjustfac, -final)  %>% 
     mutate(date = yearmonth(date))  %>%
     as_tsibble(index = date)
 
 
 x11_dcmp <- data.frame(x11_seas) %>%
-    left_join(select(unemployment_train_ts, unemp_level), by = "date") %>% 
+    left_join(select(unemployment_train_ts, unemployed), by = "date") %>% 
     select(-adjustfac, -final)  %>% 
     mutate(date = yearmonth(date)) %>% 
     as_tsibble(index = date)
 
 
 x11_dcmp_feasts <- unemployment_train_ts  %>% 
-    model(x11 = feasts:::X11(unemp_level, type = "additive"))  %>% 
+    model(x11 = feasts:::X11(unemployed, type = "additive"))  %>% 
     components()
 
 x11_dcmp_feasts  %>% 
     ggplot() +
     geom_line(aes(x= date, y = season_adjust, col = "seasonal adjusted")) +
-    geom_line(aes(x= date, y = seasonal_unemp_level, col = "US labor statistics"), data = unemployment_train_ts)
+    geom_line(aes(x= date, y = seasonal_unemployed, col = "US labor statistics"), data = unemployment_train_ts)
 
 
 
 x13_dcmp  %>% 
     ggplot() +
     geom_line(aes(x = date, y = seasonaladj, col = "x13 SA")) +
-    geom_line(aes(x= date, y = seasonal_unemp_level, col = "US labor statistics"), data = unemployment_train_ts) +
+    geom_line(aes(x= date, y = seasonal_unemployed, col = "US labor statistics"), data = unemployment_train_ts) +
     geom_line(aes(x= date, y = season_adjust, col = "x11 SA"), data = x11_dcmp )
 
 
 #Compare RMSE to find closest fit to original US labor statistics decomposition
 
 # x13 with seas
-mean((unemployment_train_ts$seasonal_unemp_level - x13_dcmp$seasonaladj)^2)
+mean((unemployment_train_ts$seasonal_unemployed - x13_dcmp$seasonaladj)^2)
 
 ## X11 with feasts
-mean((unemployment_train_ts$seasonal_unemp_level - x11_dcmp_feasts$season_adjust)^2)
+mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp_feasts$season_adjust)^2)
 
 # X11 with seas
-mean((unemployment_train_ts$seasonal_unemp_level - x11_dcmp$seasonaladj)^2)
+mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp$seasonaladj)^2)
 
 
 # Decomposing of the series ----
 x13_dcmp %>% 
     select(-seasonaladj) %>% 
-    pivot_longer(cols = seasonal:unemp_level,
+    pivot_longer(cols = seasonal:unemployed,
                  names_to = "components",
                  values_to = "values") %>% 
     autoplot() +
@@ -163,7 +163,7 @@ x13_dcmp %>%
 
 x11_dcmp %>% 
     select(-seasonaladj) %>% 
-    pivot_longer(cols = seasonal:unemp_level,
+    pivot_longer(cols = seasonal:unemployed,
                  names_to = "components",
                  values_to = "values") %>% 
     autoplot() +
@@ -179,10 +179,10 @@ x11_dcmp %>%
 
 
 # Only for checking
-x13_dcmp %>% 
-    data.frame() %>% 
-    select(-date, -seasonaladj) %>% 
-    apply(., 1, sum)
+# x13_dcmp %>% 
+#     data.frame() %>% 
+#     select(-date, -seasonaladj) %>% 
+#     apply(., 1, sum)
 
 
 
