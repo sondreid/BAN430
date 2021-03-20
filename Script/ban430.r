@@ -10,9 +10,10 @@ library(lubridate)
 library(magrittr)
 library(feasts)
 library(seasonal)
-library(RJDemetra)
-library(rJava)
-#library(ggfortify)
+library(x13binary)
+Sys.setenv(X13_PATH = "/Users/olaiviken/Documents/BAN430/BAN430/x13binary/bin")
+#Sys.setenv(X13_PATH = "../windows_x13/bin")
+checkX13()
 
 df <- read_xls("../Data/US/Forecasting_economic_data.xls", sheet = 2)
 
@@ -97,17 +98,24 @@ unemployment_train_ts   %>%
 
 
 
-# STL: X11
-
-test <- ts(unemployment_train %>% select(date, unemp_level), start = c("1995"), frequency = 12)
-x13_dcmp <- ts(unemployment_train %>% select(date, unemp_level)) %>% x13()
 
 
 
+## SEAS X13
 
-x13_mod <- x13(ts(unemployment_train %>% select(date, unemp_level), start = c("1995"), frequency = 12))
-plot(x13_mod, type_chart = "sa-trend")
-autoplot(x13_mod)
+x_13_seas <- seas(ts(unemployment_train %>% select(unemp_level), start = c("1995"), frequency = 12))
+
+x_11_seas <- seas(ts(unemployment_train %>% select(unemp_level), start = c("1995"), frequency = 12), x11 = "")
+
+#Convert results to dataframe
+x_13_df <- data.frame(x_13_seas)  %>% 
+    mutate(date = yearmonth(date))  %>%
+    as_tsibble(index = date)
+
+
+x_11_df <- data.frame(x_11_seas)  %>% 
+    mutate(date = yearmonth(date)) %>% 
+    as_tsibble(index = date)
 
 
 unemployment_train_ts  %>%  seas(x = unemp_level,
@@ -115,9 +123,6 @@ unemployment_train_ts  %>%  seas(x = unemp_level,
                 regression.aictest = NULL,
                 outlier = NULL,
                 transform.function = "none")
-
-
-
 
 x11_dcmp <- unemployment_train_ts  %>% 
     model(x11 = feasts:::X11(unemp_level, type = "additive"))  %>% 
@@ -130,7 +135,45 @@ x11_dcmp  %>%
 
 
 
-seas(unemployment_train_ts,x = unemp_level,x11="")
+x_13_df  %>% 
+    ggplot() +
+    geom_line(aes(x = date, y = seasonaladj, col = "x13 SA")) +
+    geom_line(aes(x= date, y = seasonal_unemp_level, col = "US labor statistics"), data = unemployment_train_ts) +
+    geom_line(aes(x= date, y = season_adjust, col = "x11 SA"), data = x11_dcmp )
+
+
+#Compare RMSE to find closest fit to original US labor statistics decomposition
+
+# x13 with seas
+mean((unemployment_train_ts$seasonal_unemp_level - x_13_df$seasonaladj)^2)
+
+## X11 with feasts
+mean((unemployment_train_ts$seasonal_unemp_level - x11_dcmp$season_adjust)^2)
+
+# X11 with seas
+mean((unemployment_train_ts$seasonal_unemp_level - x_11_df$seasonaladj)^2)
+
+
+# Decomposing of the series ----
+x_13_df %>% 
+    select(-adjustfac, -final) %>% 
+    pivot_longer(cols = seasonal:irregular,
+                 names_to = "components",
+                 values_to = "values") %>% 
+    autoplot() +
+    facet_grid(vars(components)) +
+    labs(title = "Decomposition of X13",
+         y = "Unemployment level") +
+    guides(colour = guide_legend("Components"))
+
+
+    
+?labs()
+?facet_grid()
+
+pivot_longer
+
+
 
 
 ### ETS model ###
