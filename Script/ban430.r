@@ -389,7 +389,7 @@ arima_optimal %>%
 
 # Checking for problems with non-stationarity, acf or normal-distribution
 arima_optimal %>% 
-    gg_tsresiduals()
+    gg_tsresiduals() # Does not seems to be sign of correlation in resduals, and the histogram shows a normally distributed, this means that the prediction interval will be ok. 
 
 arima_optimal %>% 
     augment() %>% 
