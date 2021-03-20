@@ -57,6 +57,9 @@ unemployment_train <- unemployment  %>%
     filter(year(date) <= 2018)  %>% 
     select(date, unemployed, seasonal_unemployed)
 
+unemployment_test <- unemployment  %>% 
+    filter(year(date) > 2018)  %>% 
+    select(date, unemployed, seasonal_unemployed)
 
 
 ###### Summary statistics #########
@@ -79,6 +82,9 @@ unemployment_train  %>%
 
 unemployment_train_ts <-  unemployment_train %>% 
     as_tsibble(index = date) 
+
+unemployment_test_ts <- unemployment %>% 
+    as_tsibble(index = date)
 
 unemployment_test_ts <- unemployment %>% 
     as_tsibble(index = date)
@@ -142,16 +148,16 @@ ggplot() +
 #Compare RMSE to find closest fit to original US labor statistics decomposition
 
 # x13 with seas
-mean((unemployment_train_ts$seasonal_unemployed - x13_dcmp$seasonaladj)^2)
+sqrt(mean((unemployment_train_ts$seasonal_unemployed - x13_dcmp$seasonaladj)^2))
 
 ## X11 with feasts
-mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp_feasts$season_adjust)^2)
+sqrt(mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp_feasts$season_adjust)^2))
 
 # X11 with seas
-mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp$seasonaladj)^2)
+sqrt(mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp$seasonaladj)^2))
 
 # stl 
-mean((unemployment_train_ts$seasonal_unemployed - stl$season_adjust)^2)
+sqrt(mean((unemployment_train_ts$seasonal_unemployed - stl$season_adjust)^2))
 
 
 # Decomposing of the series ----------------------------------------------------
@@ -338,6 +344,8 @@ unemployment_train_ts_stationarity %>%
 unemployment_train_ts_stationarity %>% 
     gg_tsdisplay(diff_unemployed, plot_type = "partial")
 
+
+#******************************USING DIFFERENCE UNEMPLOYED*********************#
 # Finding the global optimal ARIMA-model by minimizing AICc
 arima_optimal <- unemployment_train_ts_stationarity %>% 
     select(date, diff_unemployed) %>% 
@@ -360,8 +368,50 @@ arima_optimal %>%
 
 arima_optimal %>% 
     forecast(h = 12) %>% 
-    autoplot(unemployment_test_ts, level = 95) 
+    autoplot(unemployment_test_ts %>% 
+                 mutate(diff_unemployed = difference(unemployed)) %>% 
+                 filter(year(date) >= 2007), 
+             level = 95) 
     #autolayer(unemployment_test_ts)
+
+#************************USING UNEMPLOYED**************************************#
+# Finding the global optimal ARIMA-model by minimizing AICc
+arima_optimal <- unemployment_train_ts %>% 
+    select(date, unemployed) %>% 
+    model(ARIMA_optimal = ARIMA(unemployed, 
+                                stepwise = FALSE,
+                                approx = FALSE))
+arima_optimal # Non-seasonal part (p,d,q) = (3,0,1) and Seasonal-part (P,D,Q)m = (0,1,1)12
+
+arima_optimal %>% 
+    glance(arima_optimal) # check out the AICc
+
+
+# Checking for problems with non-stationarity, acf or normal-distribution
+arima_optimal %>% 
+    gg_tsresiduals()
+
+arima_optimal %>% 
+    augment() %>% 
+    features(.innov, ljung_box, lag = 34, dof = 4) # KVIFOR ER DET FORSKJELLIG SVAR ETTER ENDRING AV LAG OG DOF?????
+
+arima_optimal %>% 
+    forecast(h = 12) %>% 
+    autoplot(unemployment_test_ts %>% filter(year(date) >= 2017), 
+             level = 95) +
+    labs(title = "Forecast of unemployment with ARIMA",
+         subtitle = arima_optimal$ARIMA_optimal,
+         y = "Unemployment level", 
+         x = "Month")
+
+fc_arima_optimal <- arima_optimal %>% 
+    forecast(h = 12)
+
+# RMSE of ARIMA-optimal
+sqrt(mean((unemployment_test$unemployed - fc_arima_optimal$.mean)**2))
+
+
+
 
 
 
