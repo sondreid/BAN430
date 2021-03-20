@@ -10,7 +10,7 @@ library(magrittr)
 library(feasts)
 library(seasonal)
 library(x13binary)
-Sys.setenv(X13_PATH = "/Users/olaiviken/Documents/BAN430/BAN430/x13binary/bin")
+#Sys.setenv(X13_PATH = "/Users/olaiviken/Documents/BAN430/BAN430/x13binary/bin")
 #Sys.setenv(X13_PATH = "../windows_x13/bin")
 checkX13()
 
@@ -74,7 +74,7 @@ unemployment_train  %>%
                 median = median(unemployed),
                 "75%-percentil" = quantile(unemployed, 0.75),
                 max = max(unemployed)) 
-    
+
 
 
 unemployment_train_ts <-  unemployment_train %>% 
@@ -190,7 +190,7 @@ stl %>%
                  values_to = "values") %>% 
     autoplot(values) +
     facet_grid(vars(components),
-                scales = "free_y") +
+               scales = "free_y") +
     labs(title = "STL decomposition of Unemployment US",
          subtitle = "unemployed = trend + season_year + remainder",
          y = "Unemployment level",
@@ -199,33 +199,100 @@ stl %>%
 
 
 # Choosing X11 because of best RMSE
-x11_dcmp %>% 
+
+
+### Forecast indivial compnents of the X11 decomposition
+
+#Decompose a test time series
+x11_seas_test <- seas(ts(unemployment %>% select(unemployed), start = c("1995"), frequency = 12), x11 = "")
+
+x11_dcmp_test <- data.frame(x11_seas_test) %>%
+    left_join(select(unemployment_test_ts, unemployed), by = "date") %>% 
+    select(-adjustfac, -final, -seasonaladj)  %>% 
+    mutate(date = yearmonth(date)) %>% 
+    as_tsibble(index = date)  %>% 
+    pivot_longer(cols = seasonal:unemployed,
+                 names_to = "components",
+                 values_to = "values") 
+
+
+
+x11_dcmp %>%
     select(date, seasonaladj) %>% 
-    model(Naive = NAIVE(seasonaladj),
+    model(Mean = MEAN(seasonaladj),
+          Drift = RW(seasonaladj ~ drift()),
+          Naive = NAIVE(seasonaladj),
           SNaive = SNAIVE(seasonaladj ~ lag("year"))) %>% 
-    forecast(h = 14) %>% 
+    forecast(h = 12) %>% 
     autoplot(level = NULL) +
-    autolayer(unemployment_test_ts, seasonal_unemployed) +
+    autolayer(unemployment_test_ts  %>% filter(year(date) >= 2007), unemployed) +
     labs(title = "Forecast with X11",
-         y = "Unemployment level")
+         y = "Unemployment level",
+         x = "Month")
+
+
+x11_dcmp %>% 
+    select(-seasonaladj) %>%
+    pivot_longer(cols = seasonal:unemployed,
+                 names_to = "components",
+                 values_to = "values") %>% 
+    model(Mean = MEAN(values),
+          Drift = RW(values ~ drift()),
+          Naive = NAIVE(values),
+          SNaive = SNAIVE(values ~ lag("year")),
+          ETS = ETS(values))  %>% 
+    forecast(h = 12)  %>% 
+    autoplot(level = FALSE) +
+    autolayer(x11_dcmp_test %>% filter(year(date) >= 2007)) +
+    facet_grid(vars(components),
+               scales = "free_y") +
+    labs(title = "Forecast of X11 decomposition",
+         subtitle = "unemployed = trend + seasonal + irregular",
+         y = "Unemployment level",
+         x = "Month")  # HUSK Å FIKSE LEGENDS
 
 
 
+### Model types
+x11_models <- x11_dcmp %>% 
+    select(-seasonaladj) %>%
+    pivot_longer(cols = seasonal:unemployed,
+                 names_to = "components",
+                 values_to = "values") %>% 
+    model(Mean = MEAN(values),
+          Drift = RW(values ~ drift()),
+          Naive = NAIVE(values),
+          SNaive = SNAIVE(values ~ lag("year")),
+          ETS = ETS(values)) # HUKS Å SJEKKE ETS!!!
 
 
-# Only for checking
-# x13_dcmp %>% 
-#     data.frame() %>% 
-#     select(-date, -seasonaladj) %>% 
-#     apply(., 1, sum)
+## Cross validation
 
-
-
+source("cross_validation.r")
+" Cross validate.
+Finne rett steg
+Optimale vindu
+"
 
 
 ### ETS model ###
 
+
+
+x11_dcmp %>%
+    select(date, seasonaladj) %>% 
+    model(ETS(seasonaladj)) %>% 
+    forecast(h = 12) %>% 
+    autoplot(level = 95) +
+    autolayer(unemployment_test_ts  %>% filter(year(date) >= 2007), unemployed) +
+    labs(title = "Forecast with X11",
+         y = "Unemployment level",
+         x = "Month")
+
+
 #### ARIMA
+
+
 
 
 
