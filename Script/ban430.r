@@ -216,7 +216,6 @@ x11_dcmp_test <- data.frame(x11_seas_test) %>%
                  values_to = "values") 
 
 
-
 x11_dcmp %>%
     select(date, seasonaladj) %>% 
     model(Mean = MEAN(seasonaladj),
