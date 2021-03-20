@@ -5,7 +5,6 @@
 ### Libraries ----
 library(fpp3)
 library(readxl)
-#library(doParallel)  
 library(lubridate)
 library(magrittr)
 library(feasts)
@@ -44,8 +43,8 @@ colnames(df) <- clear_names
 #             x = "Months") +
 #     guides(col = guide_legend(title = "Series:")) 
 
-unemployment  %>% 
-    model(classical_decomposition(unemp_level, type = "additive"))
+#unemployment  %>% 
+#    model(classical_decomposition(unemp_level, type = "additive"))
 
 
 unemployment <- df  %>% 
@@ -98,11 +97,7 @@ unemployment_train_ts   %>%
 
 
 
-
-
-
 ## SEAS X13
-
 x13_seas <- seas(ts(unemployment_train %>% select(unemp_level), start = c("1995"), frequency = 12))
 
 x11_seas <- seas(ts(unemployment_train %>% select(unemp_level), start = c("1995"), frequency = 12), x11 = "")
@@ -122,7 +117,7 @@ x11_dcmp <- data.frame(x11_seas) %>%
     as_tsibble(index = date)
 
 
-x11_dcmp <- unemployment_train_ts  %>% 
+x11_dcmp_feasts <- unemployment_train_ts  %>% 
     model(x11 = feasts:::X11(unemp_level, type = "additive"))  %>% 
     components()
 
