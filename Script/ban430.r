@@ -12,7 +12,7 @@ library(feasts)
 library(seasonal)
 library(RJDemetra)
 library(rJava)
-#library(ggfortify)
+library(ggfortify)
 
 df <- read_xls("../Data/US/Forecasting_economic_data.xls", sheet = 2)
 
@@ -97,10 +97,23 @@ unemployment_train_ts   %>%
 
 
 
-# STL: X11
 
-test <- ts(unemployment_train %>% select(date, unemp_level), start = c("1995"), frequency = 12)
-x13_dcmp <- ts(unemployment_train %>% select(date, unemp_level)) %>% x13()
+
+
+## SEAS X13
+library(x13binary)
+Sys.setenv(X13_PATH = "F:/x13binary/bin")
+checkX13()
+
+test <- ts(unemployment_train %>% select(unemp_level), start = c("1995"), frequency = 12)
+x_13_seas <- seas(test)
+
+
+x_13_df <- data.frame(
+    x13 = x_13_seas)  %>% 
+    mutate(date = yearmonth(x13.date))  %>% 
+    select(-x13.date) %>%
+    as_tsibble(index = date)
 
 
 
@@ -130,14 +143,18 @@ x11_dcmp  %>%
 
 
 
-seas(unemployment_train_ts,x = unemp_level,x11="")
+x_13_df  %>% 
+    ggplot() +
+    geom_line(aes(x = date, y = x13.seasonaladj, col = "x13 SA")) +
+    geom_line(aes(x= date, y = seasonal_unemp_level, col = "US labor statistics"), data = unemployment_train_ts) +
+    geom_line(aes(x= date, y = season_adjust, col = "x11 SA"), data = x11_dcmp )
 
 
 ### ETS model ###
 
 #### ARIMA
 
-
+?seas()
 
 
 
