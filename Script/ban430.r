@@ -103,39 +103,37 @@ unemployment_train_ts   %>%
 
 ## SEAS X13
 
-x_13_seas <- seas(ts(unemployment_train %>% select(unemp_level), start = c("1995"), frequency = 12))
+x13_seas <- seas(ts(unemployment_train %>% select(unemp_level), start = c("1995"), frequency = 12))
 
-x_11_seas <- seas(ts(unemployment_train %>% select(unemp_level), start = c("1995"), frequency = 12), x11 = "")
+x11_seas <- seas(ts(unemployment_train %>% select(unemp_level), start = c("1995"), frequency = 12), x11 = "")
 
 #Convert results to dataframe
-x_13_df <- data.frame(x_13_seas)  %>% 
+x13_dcmp <- data.frame(x13_seas) %>% 
+    left_join(select(unemployment_train_ts, unemp_level), by = "date") %>% 
+    select(-adjustfac, -final)  %>% 
     mutate(date = yearmonth(date))  %>%
     as_tsibble(index = date)
 
 
-x_11_df <- data.frame(x_11_seas)  %>% 
+x11_dcmp <- data.frame(x11_seas) %>%
+    left_join(select(unemployment_train_ts, unemp_level), by = "date") %>% 
+    select(-adjustfac, -final)  %>% 
     mutate(date = yearmonth(date)) %>% 
     as_tsibble(index = date)
 
-
-unemployment_train_ts  %>%  seas(x = unemp_level,
-                arima.model = "(1 1 1)(0 1 1)",
-                regression.aictest = NULL,
-                outlier = NULL,
-                transform.function = "none")
 
 x11_dcmp <- unemployment_train_ts  %>% 
     model(x11 = feasts:::X11(unemp_level, type = "additive"))  %>% 
     components()
 
-x11_dcmp  %>% 
+x11_dcmp_feasts  %>% 
     ggplot() +
     geom_line(aes(x= date, y = season_adjust, col = "seasonal adjusted")) +
     geom_line(aes(x= date, y = seasonal_unemp_level, col = "US labor statistics"), data = unemployment_train_ts)
 
 
 
-x_13_df  %>% 
+x13_dcmp  %>% 
     ggplot() +
     geom_line(aes(x = date, y = seasonaladj, col = "x13 SA")) +
     geom_line(aes(x= date, y = seasonal_unemp_level, col = "US labor statistics"), data = unemployment_train_ts) +
@@ -145,33 +143,52 @@ x_13_df  %>%
 #Compare RMSE to find closest fit to original US labor statistics decomposition
 
 # x13 with seas
-mean((unemployment_train_ts$seasonal_unemp_level - x_13_df$seasonaladj)^2)
+mean((unemployment_train_ts$seasonal_unemp_level - x13_dcmp$seasonaladj)^2)
 
 ## X11 with feasts
-mean((unemployment_train_ts$seasonal_unemp_level - x11_dcmp$season_adjust)^2)
+mean((unemployment_train_ts$seasonal_unemp_level - x11_dcmp_feasts$season_adjust)^2)
 
 # X11 with seas
-mean((unemployment_train_ts$seasonal_unemp_level - x_11_df$seasonaladj)^2)
+mean((unemployment_train_ts$seasonal_unemp_level - x11_dcmp$seasonaladj)^2)
 
 
 # Decomposing of the series ----
-x_13_df %>% 
-    select(-adjustfac, -final) %>% 
-    pivot_longer(cols = seasonal:irregular,
+x13_dcmp %>% 
+    select(-seasonaladj) %>% 
+    pivot_longer(cols = seasonal:unemp_level,
                  names_to = "components",
                  values_to = "values") %>% 
     autoplot() +
-    facet_grid(vars(components)) +
+    facet_grid(vars(components),
+               scales = "free_y") +
     labs(title = "Decomposition of X13",
-         y = "Unemployment level") +
+         y = "Unemployment level",
+         x = "Month") +
+    guides(colour = guide_legend("Components"))
+
+x11_dcmp %>% 
+    select(-seasonaladj) %>% 
+    pivot_longer(cols = seasonal:unemp_level,
+                 names_to = "components",
+                 values_to = "values") %>% 
+    autoplot() +
+    facet_grid(vars(components),
+               scales = "free_y") +
+    labs(title = "Decomposition of X11",
+         y = "Unemployment level",
+         x = "Month") +
     guides(colour = guide_legend("Components"))
 
 
-    
-?labs()
-?facet_grid()
 
-pivot_longer
+
+
+# Only for checking
+x13_dcmp %>% 
+    data.frame() %>% 
+    select(-date, -seasonaladj) %>% 
+    apply(., 1, sum)
+
 
 
 
