@@ -121,18 +121,19 @@ x11_dcmp_feasts <- unemployment_train_ts  %>%
     model(x11 = feasts:::X11(unemployed, type = "additive"))  %>% 
     components()
 
-x11_dcmp_feasts  %>% 
-    ggplot() +
-    geom_line(aes(x= date, y = season_adjust, col = "seasonal adjusted")) +
-    geom_line(aes(x= date, y = seasonal_unemployed, col = "US labor statistics"), data = unemployment_train_ts)
+stl <- unemployment_train_ts %>%
+    model(
+        STL(unemployed ~ trend(window = 7) +
+                season(window = "periodic"),
+            robust = TRUE)) %>%
+    components()
 
+ggplot() +
+    geom_line(aes(x = date, y = seasonaladj, col = "x13 SA"), data = x13_dcmp) +
+    geom_line(aes(x= date, y = seasonal_unemployed, col = "Unemployment US SA"), data = unemployment_train_ts) +
+    geom_line(aes(x= date, y = seasonaladj, col = "x11 SA"), data = x11_dcmp ) +
+    geom_line(aes(x= date, y = season_adjust, col = "STL SA"), data = stl)
 
-
-x13_dcmp  %>% 
-    ggplot() +
-    geom_line(aes(x = date, y = seasonaladj, col = "x13 SA")) +
-    geom_line(aes(x= date, y = seasonal_unemployed, col = "US labor statistics"), data = unemployment_train_ts) +
-    geom_line(aes(x= date, y = season_adjust, col = "x11 SA"), data = x11_dcmp )
 
 
 #Compare RMSE to find closest fit to original US labor statistics decomposition
@@ -146,6 +147,8 @@ mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp_feasts$season_adjust)
 # X11 with seas
 mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp$seasonaladj)^2)
 
+# stl 
+mean((unemployment_train_ts$seasonal_unemployed - stl$season_adjust)^2)
 
 # Decomposing of the series ----
 x13_dcmp %>% 
@@ -177,6 +180,13 @@ x11_dcmp %>%
     guides(colour = guide_legend("Components"))
 
 
+unemployment_train_ts %>%
+    model(
+        STL(unemployed ~ trend(window = 7) +
+                season(window = "periodic"),
+            robust = TRUE)) %>%
+    components() %>%
+    autoplot()
 
 
 
