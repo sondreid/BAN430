@@ -201,9 +201,13 @@ stl %>%
 # Choosing X11 because of best RMSE
 x11_dcmp %>% 
     select(date, seasonaladj) %>% 
-    model(Naive = NAIVE(seasonaladj)) %>% 
-    forecast(h = 8) %>% 
-    autoplot(unemployment_test_ts, se)
+    model(Naive = NAIVE(seasonaladj),
+          SNaive = SNAIVE(seasonaladj ~ lag("year"))) %>% 
+    forecast(h = 14) %>% 
+    autoplot(level = NULL) +
+    autolayer(unemployment_test_ts, seasonal_unemployed) +
+    labs(title = "Forecast with X11",
+         y = "Unemployment level")
 
 
 
