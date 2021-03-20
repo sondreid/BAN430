@@ -409,6 +409,15 @@ fc_arima_optimal <- arima_optimal %>%
 
 # RMSE of ARIMA-optimal
 sqrt(mean((unemployment_test$unemployed - fc_arima_optimal$.mean)**2))
+accuracy(fc_arima_optimal, unemployment_test_ts) # Testing the accuracy of the forecast
+
+
+"When comparing models using AICc, the most important part is that
+the models have the same differecing order (I).
+
+Even if the all the models does not pass a ljung-box test (prediction interval cannot
+be interpreted), we can still forecast"
+
 
 
 
