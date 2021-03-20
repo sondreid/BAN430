@@ -156,7 +156,8 @@ x13_dcmp %>%
     autoplot() +
     facet_grid(vars(components),
                scales = "free_y") +
-    labs(title = "Decomposition of X13",
+    labs(title = "X13 decomposition of Unemployment US",
+         subtitle = "unemployed = trend + seasonal + irregular",
          y = "Unemployment level",
          x = "Month") +
     guides(colour = guide_legend("Components"))
@@ -169,7 +170,8 @@ x11_dcmp %>%
     autoplot() +
     facet_grid(vars(components),
                scales = "free_y") +
-    labs(title = "Decomposition of X11",
+    labs(title = "X11 decomposition of Unemployment US",
+         subtitle = "unemployed = trend + seasonal + irregular",
          y = "Unemployment level",
          x = "Month") +
     guides(colour = guide_legend("Components"))
