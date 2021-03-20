@@ -80,6 +80,9 @@ unemployment_train  %>%
 unemployment_train_ts <-  unemployment_train %>% 
     as_tsibble(index = date) 
 
+unemployment_test_ts <- unemployment %>% 
+    as_tsibble(index = date)
+
 #Seasonal subseries
 unemployment_train_ts  %>%  
     gg_subseries(unemployed) +
@@ -150,7 +153,8 @@ mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp$seasonaladj)^2)
 # stl 
 mean((unemployment_train_ts$seasonal_unemployed - stl$season_adjust)^2)
 
-# Decomposing of the series ----
+
+# Decomposing of the series ----------------------------------------------------
 x13_dcmp %>% 
     select(-seasonaladj) %>% 
     pivot_longer(cols = seasonal:unemployed,
@@ -192,6 +196,16 @@ stl %>%
          y = "Unemployment level",
          x = "Month") +
     guides(colour = FALSE)
+
+
+# Choosing X11 because of best RMSE
+x11_dcmp %>% 
+    select(date, seasonaladj) %>% 
+    model(Naive = NAIVE(seasonaladj)) %>% 
+    forecast(h = 8) %>% 
+    autoplot(unemployment_test_ts, se)
+
+
 
 
 
