@@ -241,7 +241,7 @@ x11_dcmp %>%
           SNaive = SNAIVE(values ~ lag("year")),
           ETS = ETS(values))  %>% 
     forecast(h = 12)  %>% 
-    autoplot(level = FALSE) +
+    autoplot(level = NULL) +
     autolayer(x11_dcmp_test %>% filter(year(date) >= 2007)) +
     facet_grid(vars(components),
                scales = "free_y") +
@@ -267,7 +267,7 @@ x11_models <- x11_dcmp %>%
 
 ## Cross validation
 
-source("cross_validation.r")
+#source("cross_validation.r")
 " Cross validate.
 Finne rett steg
 Optimale vindu
@@ -275,26 +275,93 @@ Optimale vindu
 
 
 ### ETS model ###
+fit_ets <- unemployment_train_ts %>%
+    select(date, unemployed) %>% 
+    model(ETS(unemployed)) # Finds the optimal ETS by minimizing AICc
 
+fit_ets # Error: Additive, Trend: Additive damped, Seasonal: Additive
 
+ets_dcmp <- fit_ets %>% 
+    components() %>%
+    autoplot()
+ets_dcmp
 
-x11_dcmp %>%
-    select(date, seasonaladj) %>% 
-    model(ETS(seasonaladj)) %>% 
+fit_ets %>% 
     forecast(h = 12) %>% 
     autoplot(level = 95) +
     autolayer(unemployment_test_ts  %>% filter(year(date) >= 2007), unemployed) +
-    labs(title = "Forecast with X11",
+    labs(title = "Forecast with ETS",
          y = "Unemployment level",
          x = "Month")
 
 
-#### ARIMA
+#### ARIMA ---------------------------
+unemployment_train_ts  %>% 
+    features(unemployed, ljung_box, lag = 10) # Problems with autocorrelation
+
+unemployment_train_ts %>% 
+    ACF() %>% 
+    autoplot()
+
+unemployment_train_ts %>% 
+    features(unemployed, unitroot_kpss) # p-value of 1% is significant under 5%-significance level. KPSS(Kviatkowski-Phillips-Scmidt_Shin), indicating that there is need for differencing
+
+unemployment_train_ts %>% 
+    features(unemployed, unitroot_ndiffs)
+
+unemployment_train_ts_stationarity <- unemployment_train_ts %>% 
+    mutate(diff_unemployed = difference(unemployed)) 
+
+unemployment_train_ts_stationarity %>% 
+    features(diff_unemployed, unitroot_kpss) # p-value of 10%, no need for more differencing.
+
+# Plotting unemployed and diff-unemployed
+unemployment_train_ts_stationarity %>% 
+    select(-seasonal_unemployed) %>% 
+    pivot_longer(cols = unemployed:diff_unemployed,
+                 names_to = "components",
+                 values_to = "values") %>% 
+    autoplot() +
+    facet_grid(vars(components))
+    
+# Autocorrelation of unemployed and diff-unemployed
+unemployment_train_ts_stationarity %>% 
+    select(-seasonal_unemployed) %>% 
+    pivot_longer(cols = unemployed:diff_unemployed,
+                 names_to = "components",
+                 values_to = "values") %>% 
+    ACF() %>% 
+    autoplot() +
+    facet_grid(vars(components))
+
+# Plots of differenced unemployed, autocorrelation and partial autocorrelation
+unemployment_train_ts_stationarity %>% 
+    gg_tsdisplay(diff_unemployed, plot_type = "partial")
+
+# Finding the global optimal ARIMA-model by minimizing AICc
+arima_optimal <- unemployment_train_ts_stationarity %>% 
+    select(date, diff_unemployed) %>% 
+    model(ARIMA_optimal = ARIMA(diff_unemployed, 
+                                stepwise = FALSE,
+                                approx = FALSE))
+arima_optimal
+
+arima_optimal %>% 
+    glance(arima_optimal) # check out the AICc
 
 
+# Checking for problems with non-stationarity, acf or normal-distribution
+arima_optimal %>% 
+    gg_tsresiduals()
 
+arima_optimal %>% 
+    augment() %>% 
+    features(.innov, ljung_box, lag = 24, dof = 3) # KVIFOR ER DET FORSKJELLIG SVAR ETTER ENDRING AV LAG OG DOF?????
 
-
+arima_optimal %>% 
+    forecast(h = 12) %>% 
+    autoplot(unemployment_test_ts, level = 95) 
+    #autolayer(unemployment_test_ts)
 
 
 
