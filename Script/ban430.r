@@ -5,7 +5,13 @@
 ### Libraries ----
 library(fpp3)
 library(readxl)
-library(doParallel)  
+#library(doParallel)  
+library(lubridate)
+library(magrittr)
+library(feasts)
+library(seasonal)
+library(RJDemetra)
+library(rJava)
 #library(ggfortify)
 
 df <- read_xls("../Data/US/Forecasting_economic_data.xls", sheet = 2)
@@ -27,23 +33,21 @@ clear_names <- c(   "date",
 
 colnames(df) <- clear_names
 
-unemployment %>% 
-    ggplot() +
-    geom_line(aes(x = date, y = unemp_level, col = "Unadjusted seasonal")) +
-    geom_line(aes(x = date, y = seasonal_unemp_level, col = "Adjusted seasonal")) +
-    labs(   title = "Unemployment in USA",
-            subtitle = "Seasonal adj. vs non adj.",
-            y = "Unemployment level",
-            x = "Months") +
-    guides(col = guide_legend(title = "Series:"))
+# unemployment %>% 
+#     ggplot() +
+#     geom_line(aes(x = date, y = unemp_level, col = "Unadjusted seasonal")) +
+#     geom_line(aes(x = date, y = seasonal_unemp_level, col = "Adjusted seasonal")) +
+#     labs(   title = "Unemployment in USA",
+#             subtitle = "Seasonal adj. vs non adj.",
+#             y = "Unemployment level",
+#             x = "Months") +
+#     guides(col = guide_legend(title = "Series:")) 
 
 unemployment  %>% 
     model(classical_decomposition(unemp_level, type = "additive"))
 
 
-
-
-unemployment_2019 <- df  %>% 
+unemployment <- df  %>% 
     mutate(date = yearmonth(date))  %>% 
     filter(year(date) >= 1995 & year(date) <= 2019)   %>% 
     select(date, unemp_level, seasonal_unemp_level)   
@@ -51,12 +55,91 @@ unemployment_2019 <- df  %>%
 
 unemployment_train <- unemployment  %>% 
     filter(year(date) <= 2018)  %>% 
-    select(date, unemp_level)
+    select(date, unemp_level, seasonal_unemp_level)
+
 
 
 ###### Summary statistics #########
+
+
+### Mean, median etc.
+
+
 unemployment_train  %>% 
-    summarise_at(mean = mean(unemp_level),
-              median = median(unemp_level))
+    mutate(month = lubridate::month(date))  %>%
+    group_by(month)  %>% 
+    summarise(  min = min(unemp_level),
+                "25%-percentil" = quantile(unemp_level, 0.25),
+                mean = mean(unemp_level),
+                median = median(unemp_level),
+                "75%-percentil" = quantile(unemp_level, 0.75),
+                max = max(unemp_level)) 
+    
+
+
+unemployment_train_ts <-  unemployment_train %>% 
+    as_tsibble(index = date) 
+
+#Seasonal subseries
+unemployment_train_ts  %>%  
+    gg_subseries(unemp_level) +
+    labs(x = "Month", y = "Unemployment level")
+
+# Train series
+unemployment_train_ts   %>%  
+    ggplot() +
+    geom_line(aes(x = date, y = unemp_level, col = "Training data")) +
+    labs(   title = "Unemployment",
+            subtitle = "Train [1995-2018]",
+            y = "Unemployment level",
+            x = "Month") +
+    guides(col = FALSE) 
+
+
+
+# STL: X11
+
+test <- ts(unemployment_train %>% select(date, unemp_level), start = c("1995"), frequency = 12)
+x13_dcmp <- ts(unemployment_train %>% select(date, unemp_level)) %>% x13()
+
+
+
+
+x13_mod <- x13(ts(unemployment_train %>% select(date, unemp_level), start = c("1995"), frequency = 12))
+plot(x13_mod, type_chart = "sa-trend")
+autoplot(x13_mod)
+
+
+unemployment_train_ts  %>%  seas(x = unemp_level,
+                arima.model = "(1 1 1)(0 1 1)",
+                regression.aictest = NULL,
+                outlier = NULL,
+                transform.function = "none")
+
+
+
+
+x11_dcmp <- unemployment_train_ts  %>% 
+    model(x11 = feasts:::X11(unemp_level, type = "additive"))  %>% 
+    components()
+
+x11_dcmp  %>% 
+    ggplot() +
+    geom_line(aes(x= date, y = season_adjust, col = "seasonal adjusted")) +
+    geom_line(aes(x= date, y = seasonal_unemp_level, col = "US labor statistics"), data = unemployment_train_ts)
+
+
+
+seas(unemployment_train_ts,x = unemp_level,x11="")
+
+
+### ETS model ###
+
+#### ARIMA
+
+
+
+
+
 
 
