@@ -180,13 +180,18 @@ x11_dcmp %>%
     guides(colour = FALSE)
 
 
-unemployment_train_ts %>%
-    model(
-        STL(unemployed ~ trend(window = 7) +
-                season(window = "periodic"),
-            robust = TRUE)) %>%
-    components() %>%
-    autoplot()
+stl %>%
+    pivot_longer(cols = unemployed:remainder,
+                 names_to = "components",
+                 values_to = "values") %>% 
+    autoplot(values) +
+    facet_grid(vars(components),
+                scales = "free_y") +
+    labs(title = "STL decomposition of Unemployment US",
+         subtitle = "unemployed = trend + season_year + remainder",
+         y = "Unemployment level",
+         x = "Month") +
+    guides(colour = FALSE)
 
 
 
