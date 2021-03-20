@@ -380,7 +380,7 @@ arima_optimal <- unemployment_train_ts %>%
     select(date, unemployed) %>% 
     model(ARIMA_optimal = ARIMA(unemployed, 
                                 stepwise = FALSE,
-                                approx = FALSE))
+                                approximation = FALSE))
 arima_optimal # Non-seasonal part (p,d,q) = (3,0,1) and Seasonal-part (P,D,Q)m = (0,1,1)12
 
 arima_optimal %>% 
