@@ -225,7 +225,7 @@ x11_dcmp %>%
           SNaive = SNAIVE(seasonaladj ~ lag("year"))) %>% 
     forecast(h = 12) %>% 
     autoplot(level = NULL) +
-    autolayer(unemployment_test_ts  %>% filter(year(date) >= 2018), unemployed) +
+    autolayer(unemployment_test_ts  %>% filter(year(date) >= 2007), unemployed) +
     labs(title = "Forecast with X11",
          y = "Unemployment level",
          x = "Month")
@@ -249,10 +249,12 @@ x11_dcmp %>%
     labs(title = "Forecast of X11 decomposition",
          subtitle = "unemployed = trend + seasonal + irregular",
          y = "Unemployment level",
-         x = "Month")
+         x = "Month")  # HUSK Å FIKSE LEGENDS
 
 
-x11_dcmp_modelayer_sf%>% 
+
+### Model types
+x11_models <- x11_dcmp %>% 
     select(-seasonaladj) %>%
     pivot_longer(cols = seasonal:unemployed,
                  names_to = "components",
@@ -261,13 +263,36 @@ x11_dcmp_modelayer_sf%>%
           Drift = RW(values ~ drift()),
           Naive = NAIVE(values),
           SNaive = SNAIVE(values ~ lag("year")),
-          ETS = ETS(values))
+          ETS = ETS(values)) # HUKS Å SJEKKE ETS!!!
 
+
+## Cross validation
+
+source("cross_validation.r")
+" Cross validate.
+Finne rett steg
+Optimale vindu
+"
 
 
 ### ETS model ###
 
+
+
+x11_dcmp %>%
+    select(date, seasonaladj) %>% 
+    model(ETS(seasonaladj)) %>% 
+    forecast(h = 12) %>% 
+    autoplot(level = 95) +
+    autolayer(unemployment_test_ts  %>% filter(year(date) >= 2007), unemployed) +
+    labs(title = "Forecast with X11",
+         y = "Unemployment level",
+         x = "Month")
+
+         
 #### ARIMA
+
+
 
 
 
