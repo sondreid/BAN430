@@ -163,7 +163,7 @@ x13_dcmp %>%
          subtitle = "unemployed = trend + seasonal + irregular",
          y = "Unemployment level",
          x = "Month") +
-    guides(colour = guide_legend("Components"))
+    guides(colour = FALSE)
 
 x11_dcmp %>% 
     select(-seasonaladj) %>% 
@@ -177,7 +177,7 @@ x11_dcmp %>%
          subtitle = "unemployed = trend + seasonal + irregular",
          y = "Unemployment level",
          x = "Month") +
-    guides(colour = guide_legend("Components"))
+    guides(colour = FALSE)
 
 
 unemployment_train_ts %>%
