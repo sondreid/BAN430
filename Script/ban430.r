@@ -335,12 +335,6 @@ unemployment_train_ts_cv <- unemployment %>%
 
 
 
-unemployment_train_ts_cv %>% 
-    filter(.id ==3) %>% nrow()
-
-
-
-
 #############################################################################################
 #################################### ETS MODEL #######################################
 #############################################################################################
@@ -430,12 +424,9 @@ unemployment_train_ts_stationarity %>%
     gg_tsdisplay(diff_unemployed, plot_type = "partial")
 
 
-fit_arima311011 <- unemployment_train_ts_cv %>% 
+fit_arima311011 <- unemployment_train_ts %>% 
     select(date, unemployed) %>% 
-    model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1),
-          ARIMA_optimal = ARIMA(unemployed, 
-                                stepwise = FALSE,
-                                approximation = FALSE)))
+    model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)))
 
 
 report(fit_arima311011)
@@ -455,11 +446,14 @@ fc_arima311011  %>% accuracy(unemployment_test_ts)
 
 #************************USING UNEMPLOYED**************************************#
 # Finding the global optimal ARIMA-model by minimizing AICc
-fit_arima_optimal <- unemployment_train_ts %>% 
+fit_arima_optimal <- unemployment_train_ts_cv %>% 
     select(date, unemployed) %>% 
     model(ARIMA_optimal = ARIMA(unemployed, 
-                                stepwise = FALSE,
-                                approximation = FALSE))
+                                stepwise = TRUE,
+                                approximation = TRUE))
+
+
+### Store in Rdata file
 fit_arima_optimal # Non-seasonal part (p,d,q) = (3,0,1) and Seasonal-part (P,D,Q)m = (0,1,1)12
 
 report(fit_arima_optimal)
