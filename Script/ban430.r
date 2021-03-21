@@ -432,12 +432,16 @@ unemployment_train_ts_stationarity %>%
 
 fit_arima311011 <- unemployment_train_ts_cv %>% 
     select(date, unemployed) %>% 
-    model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)))
+    model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1),
+          ARIMA_optimal = ARIMA(unemployed, 
+                                stepwise = FALSE,
+                                approximation = FALSE)))
 
 
 report(fit_arima311011)
 fc_arima311011 <- fit_arima311011 %>% 
-    forecast(h = 12) 
+    forecast(h = 12)  %>% 
+    filter(year(date) <= 2019)
     
 fc_arima311011  %>% 
     ggplot() +
@@ -445,8 +449,8 @@ fc_arima311011  %>%
     geom_line(aes(x = date, y = unemployed, col = "original data"), data = unemployment)
     
 
-sqrt(mean((unemployment_test$unemployed - fc_arima311011$.mean)^2))
-fc_arima311011  %>% accuracy(unemployment)
+
+fc_arima311011  %>% accuracy(unemployment_test_ts)
 
 
 #************************USING UNEMPLOYED**************************************#
