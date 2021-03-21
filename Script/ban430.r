@@ -205,19 +205,7 @@ x13_dcmp %>%
          x = "Month") +
     guides(colour = FALSE)
 
-# x11 decomposed plot
-stl_dcmp %>%
-    pivot_longer(cols = unemployed:remainder,
-                 names_to = "components",
-                 values_to = "values") %>% 
-    autoplot(values) +
-    facet_grid(vars(components),
-               scales = "free_y") +
-    labs(title = "STL decomposition of Unemployment US",
-         subtitle = "unemployed = trend + season_year + remainder",
-         y = "Unemployment level",
-         x = "Month") +
-    guides(colour = FALSE)
+
 
 
 ########################################################################################
@@ -339,10 +327,6 @@ accuracy_ets
 #################################### ETS MODEL #######################################
 #############################################################################################
 
-#fit_ets_cv <- unemployment_train_ts_cv %>% 
- #   model(ETS(unemployed))
-
-
 ## Store as R.data file
 load("../Data/model_cv_fits.Rdata")
 #save(fit_ets_cv, file = "../Data/model_cv_fits.Rdata")
@@ -374,28 +358,48 @@ fra denne skal vi då PLUKKE DEN BESTE MODELLEN MED MINST RMSSE!!"
 ################################################################################
 ################################## ARIMA #######################################
 ################################################################################
+# Plots of differenced unemployed, autocorrelation and partial autocorrelation
+unemployment_train_ts %>% 
+    gg_tsdisplay(unemployed, plot_type = "partial")
+
+
 unemployment_train_ts  %>% 
     features(unemployed, ljung_box, lag = 10) # Problems with autocorrelation
 
-unemployment_train_ts %>% 
-    ACF() %>% 
-    autoplot()
 
-unemployment_train_ts %>% 
-    features(unemployed, unitroot_kpss) # p-value of 1% is significant under 5%-significance level. KPSS(Kviatkowski-Phillips-Scmidt_Shin), indicating that there is need for differencing
+"Clearly non- stationary data with heavy trend in mean. Differencing first order makes mean stationary.
+Variance not an issue, if so then log-transform"
 
-unemployment_train_ts %>% 
-    features(unemployed, unitroot_ndiffs)
+unemployment_train_ts %>% mutate(diff_unemployed  = difference(unemployed)) %>% ACF(var = diff_unemployed) %>% autoplot()
 
-unemployment_train_ts_season_diff <- unemployment_train_ts  %>% 
-    mutate(diff_season_unemployed = difference(unemployed, 12))
+" Significant lag at 12 and 24 months suggest seasonal autocorrelation. It is therefore necessary to perform a seasonal differencing operation."
 
 unemployment_train_ts_stationarity <- unemployment_train_ts %>% 
-    mutate(diff_unemployed = difference(unemployed)) 
+    mutate(diff_season_unemployed = difference(unemployed, 12),
+           diff_unemployed        = difference(unemployed))
 
 
-unemployment_train_ts_season_diff %>% 
-    features(diff_season_unemployed, unitroot_kpss) # p-value of 5.49%, no need for more differencing.
+
+
+unemployment_train_ts_stationarity %>%  ACF(var = diff_season_unemployed) %>% autoplot()
+
+
+unemployment_train_ts_stationarity %>% 
+    features(diff_season_unemployed, unitroot_ndiffs)
+
+unemployment_train_ts_stationarity %>% 
+    features(diff_unemployed, unitroot_kpss)  # p-value of 1% is significant under 5%-significance level. KPSS(Kviatkowski-Phillips-Scmidt_Shin), indicating that there is need for differencing
+
+unemployment_train_ts_stationarity %>% 
+    features(diff_season_unemployed, unitroot_ndiffs)
+
+unemployment_train_ts_stationarity %>% 
+    gg_tsdisplay(diff_unemployed, plot_type = "partial")
+
+
+ "From the PACF we can see that there is "
+unemployment_train_ts_stationarity %>% 
+    features(diff_season_unemployed, unitroot_kpss) # p-value of 5.49%, might be need for differencing
 
 unemployment_train_ts_stationarity %>% 
     features(diff_unemployed, unitroot_kpss) # p-value of 10%, no need for more differencing.
@@ -403,7 +407,7 @@ unemployment_train_ts_stationarity %>%
 # Plotting unemployed and diff-unemployed
 unemployment_train_ts_stationarity %>% 
     select(-seasonal_unemployed) %>% 
-    pivot_longer(cols = unemployed:diff_unemployed,
+    pivot_longer(cols = unemployed:diff_season_unemployed,
                  names_to = "components",
                  values_to = "values") %>% 
     autoplot() +
@@ -424,24 +428,26 @@ unemployment_train_ts_stationarity %>%
     gg_tsdisplay(diff_unemployed, plot_type = "partial")
 
 
-fit_arima311011 <- unemployment_train_ts %>% 
+arima_manual_fits <- unemployment_train_ts %>% 
     select(date, unemployed) %>% 
-    model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)))
+    model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1),
+          ARIMA111011 = ARIMA(unemployed ~ pdq(1,1,1) + PDQ(0,1,1)))
+          )
 
 
-report(fit_arima311011)
-fc_arima311011 <- fit_arima311011 %>% 
+report(arima_manual_fits)
+fc_arima311011 <- arima_manual_fits %>% 
     forecast(h = 12)  %>% 
     filter(year(date) <= 2019)
     
-fc_arima311011  %>% 
+arima_manual_fits  %>% 
     ggplot() +
     geom_line(aes(x = date, y = .mean, col = "forecast arima")) + 
     geom_line(aes(x = date, y = unemployed, col = "original data"), data = unemployment)
     
 
 
-fc_arima311011  %>% accuracy(unemployment_test_ts)
+arima_manual_fits  %>% accuracy(unemployment_test_ts)
 
 
 #************************USING UNEMPLOYED**************************************#
@@ -449,8 +455,8 @@ fc_arima311011  %>% accuracy(unemployment_test_ts)
 fit_arima_optimal <- unemployment_train_ts %>% 
     select(date, unemployed) %>% 
     model(ARIMA_optimal = ARIMA(unemployed, 
-                                stepwise = TRUE,
-                                approximation = TRUE))
+                                stepwise = FALSE,
+                                approximation = FALSE))
 
 
 ### Store in Rdata file
@@ -500,7 +506,7 @@ unemployment_test_ts %>%
 accuracy_arima  <- bind_rows(
     fit_arima_optimal %>% accuracy(),
     fc_arima_optimal %>% accuracy(unemployment_test_ts),
-    fit_arima311011  %>% accuracy(),
+    arima_manual_fits  %>% accuracy(),
     fc_arima311011  %>%  accuracy(unemployment_test_ts)
     ) %>%
     select(.model:RMSSE)  %>% 
@@ -521,6 +527,8 @@ accuracy_models <- bind_rows(
     ) %>% 
     arrange(RMSSE) # Root mean square standardized effect
 accuracy_models
+
+
 
 
 
