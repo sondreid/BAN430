@@ -326,13 +326,22 @@ accuracy_ets <- bind_rows(
     arrange(RMSSE)
 accuracy_ets
 
-# Accuracy of ETS by cross-validation ------------------------------------
+# Cross validation set for ETS and ARIMA forecast models ------------------------------------
 unemployment_train_ts_cv <- unemployment %>% 
     as_tsibble(index = date) %>% 
     stretch_tsibble(.init = 12, .step = 1) 
 
-fit_ets_cv <- unemployment_train_ts_cv %>% 
-    model(ETS(unemployed))
+
+
+#fit_ets_cv <- unemployment_train_ts_cv %>% 
+ #   model(ETS(unemployed))
+
+
+## Store as R.data file
+load("../Data/model_cv_fits.Rdata" )
+#save(fit_ets_cv, file = "../Data/model_cv_fits.Rdata")
+
+
 
 fc_ets_cv <- fit_ets_cv %>% 
     forecast(h = 12) %>% 
@@ -421,13 +430,18 @@ arima_optimal %>%
     augment() %>% 
     features(.innov, ljung_box, lag = 24, dof = 3) # KVIFOR ER DET FORSKJELLIG SVAR ETTER ENDRING AV LAG OG DOF?????
 
-arima_optimal %>% 
-    forecast(h = 12) %>% 
-    autoplot(unemployment_test_ts %>% 
-                 mutate(diff_unemployed = difference(unemployed)) %>% 
-                 filter(year(date) >= 2007), 
-             level = 95) 
+#arima_optimal %>% 
+#    forecast(h = 12) %>% 
+#    autoplot(unemployment_test_ts %>% 
+#                 mutate(diff_unemployed = difference(unemployed)) %>% 
+#                 filter(year(date) >= 2007), 
+#             level = 95) 
     #autolayer(unemployment_test_ts)
+
+
+arima_optimal <- unemployment_train_ts_stationarity %>% 
+    select(date, unemployed) %>% 
+    model(ARIMA_optimal = ARIMA(unemployment ~ pdq(0,0,0) + PDQ(0,1,0) + )
 
 #************************USING UNEMPLOYED**************************************#
 # Finding the global optimal ARIMA-model by minimizing AICc
@@ -448,7 +462,7 @@ fit_arima_optimal %>%
 
 fit_arima_optimal %>% 
     augment() %>% 
-    features(.innov, ljung_box, lag = 34, dof = 4) # KVIFOR ER DET FORSKJELLIG SVAR ETTER ENDRING AV LAG OG DOF?????
+    features(.innov, ljung_box, lag = 24, dof = 4) # KVIFOR ER DET FORSKJELLIG SVAR ETTER ENDRING AV LAG OG DOF?????
 
 fit_arima_optimal %>% 
     forecast(h = 12) %>% 
@@ -463,7 +477,7 @@ fc_arima_optimal <- fit_arima_optimal %>%
     forecast(h = 12)
 
 # RMSE of ARIMA-optimal; two methods -------------------------------------------
-sqrt(mean((unemployment_test$unemployed - fc_arima_optimal$.mean)**2))
+sqrt(mean((unemployment_test$unemployed - fc_arima_optimal$.mean)^2))
 accuracy(fc_arima_optimal, unemployment_test_ts) # Testing the accuracy of the forecast
 
 accuracy_arima  <- bind_rows(
