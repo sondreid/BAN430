@@ -335,17 +335,18 @@ fit_ets_cv <- unemployment_train_ts_cv %>%
     model(ETS(unemployed))
 
 fc_ets_cv <- fit_ets_cv %>% 
-    forecast(h = 12)
+    forecast(h = 12) %>% 
+    filter(year(date) >= 2019)
 
 accuracy_ets_cv <- bind_rows(
-    fit_ets_cv %>% accuracy() #,
-    #fc_ets_cv %>% accuracy(unemployment_train_ts_cv)
+    fit_ets_cv %>% accuracy(),
+    fc_ets_cv %>% accuracy(unemployment %>% as_tsibble())
     ) %>%
     select(-ME, -MPE, -ACF1) %>% 
     arrange(RMSSE)
 
-accuracy_ets_cv #%>% 
-    #filter(.type == "Test")
+accuracy_ets_cv %>% 
+    filter(.type == "Test")
 
 fit_ets_cv %>%
     filter(.id == 185) %>% 
