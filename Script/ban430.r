@@ -328,9 +328,9 @@ accuracy_ets
 #############################################################################################
 
 # Cross validation set for ETS and ARIMA forecast models
-unemployment_train_ts_cv <- unemployment %>% 
-    as_tsibble(index = date) %>% 
-    stretch_tsibble(.init = 12, .step = 1) 
+#unemployment_train_ts_cv <- unemployment %>% 
+#    as_tsibble(index = date) %>% 
+ #   stretch_tsibble(.init = 12, .step = 1) 
 
 
 
@@ -366,7 +366,7 @@ accuracy_ets_cv %>%
 fit_ets_cv %>%
     filter(.id == 185) %>% 
     forecast(h = 12) %>% 
-    autoplot(unemployment_train_ts_cv)  # FINNE UT HVORDAN VI VELGER RIKTIG FORECAST DATO!!
+    autoplot(unemployment_train_ts)  # FINNE UT HVORDAN VI VELGER RIKTIG FORECAST DATO!!
 
 "Vi må finne ut korleis vi sjekka accuracy på test(mulig det er snittet av testene)
 fra denne skal vi då PLUKKE DEN BESTE MODELLEN MED MINST RMSSE!!"
@@ -446,7 +446,7 @@ fc_arima311011  %>% accuracy(unemployment_test_ts)
 
 #************************USING UNEMPLOYED**************************************#
 # Finding the global optimal ARIMA-model by minimizing AICc
-fit_arima_optimal <- unemployment_train_ts_cv %>% 
+fit_arima_optimal <- unemployment_train_ts %>% 
     select(date, unemployed) %>% 
     model(ARIMA_optimal = ARIMA(unemployed, 
                                 stepwise = TRUE,
