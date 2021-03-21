@@ -4,12 +4,15 @@
 
 #setwd("G:/Dokumenter/Google drive folder/NHH/Master/BAN430/Repository/Script")
 #setwd("/Users/olaiviken/Documents/BAN430/BAN430/Data")
-#Sys.setenv(X13_PATH = "/Users/olaiviken/Documents/BAN430/BAN430/x13binary/bin")
+
+# Choose the first if you use Mac OS and second if Windows
+#Sys.setenv(X13_PATH = "../x13binary/bin")
 #Sys.setenv(X13_PATH = "../windows_x13/bin")
 
-###############################################################################
-############################# LIBRARIES #######################################
-###############################################################################
+
+################################################################################
+############################## LIBRARIES #######################################
+################################################################################
 library(fpp3)
 library(readxl)
 library(lubridate)
@@ -17,14 +20,15 @@ library(magrittr)
 library(feasts)
 library(seasonal)
 library(x13binary)
+
 checkX13()
 
 
-##############################################################################
-########################### DATA RETRIEVAL ###################################
-##############################################################################
-df <- read_xls("../Data/US/Forecasting_economic_data.xls", sheet = 2)
-clear_names <- c(   "date", 
+###############################################################################
+############################ DATA RETRIEVAL ###################################
+###############################################################################
+df <- read_xls("../Data/US/Forecasting_economic_data.xls", sheet = 2)  %>% 
+    `colnames<-`( c("date", 
                     "seasonal_unemp_men", 
                     "seasonal_unemp_women", 
                     "seasonal_unemp_less_high_school", 
@@ -36,8 +40,8 @@ clear_names <- c(   "date",
                     "unemp_less_high_school",
                     "unemp_high_school",
                     "unemp_college", 
-                    "seasonal_unemployed")
-colnames(df) <- clear_names
+                    "seasonal_unemployed"))
+
 
 #################################################################################
 ########################### TRAINING AND TEST ###################################
@@ -55,6 +59,13 @@ unemployment_test <- unemployment  %>%
     filter(year(date) > 2018)  %>% 
     select(date, unemployed, seasonal_unemployed)
 
+unemployment_train_ts <-  unemployment_train %>% 
+    as_tsibble(index = date) 
+
+unemployment_test_ts <- unemployment %>% 
+    as_tsibble(index = date)
+
+
 ###################################################################################
 ############################ DESCRIPTIV STATISTICS ################################
 ###################################################################################
@@ -62,20 +73,18 @@ unemployment %>%
      ggplot() +
      geom_line(aes(x = date, y = unemployed, col = "Unadjusted seasonal")) +
      geom_line(aes(x = date, y = seasonal_unemployed, col = "Adjusted seasonal")) +
-     labs(   title = "Unemployment in USA",
-             subtitle = "Seasonal adj. vs non adj.",
-             y = "Unemployment level",
-             x = "Months") +
+     labs(title = "Unemployment in USA",
+          subtitle = "Seasonal adj. vs non adj.",
+          y = "Unemployment level",
+          x = "Months") +
     guides(col = guide_legend(title = "Series:")) 
 
 
 ###################################################################################
-######################## Summary statistics ##############################
-##########################################################################
+############################## Summary statistics #################################
+###################################################################################
 
-
-### Mean, median etc.
-
+# Minimum, 25%-percentile, Mean, Median, 75%-percentile and Maximum
 unemployment_train  %>% 
     mutate(month = lubridate::month(date))  %>%
     group_by(month)  %>% 
@@ -86,101 +95,87 @@ unemployment_train  %>%
                 "75%-percentil" = quantile(unemployed, 0.75),
                 max = max(unemployed)) 
 
-
-
-unemployment_train_ts <-  unemployment_train %>% 
-    as_tsibble(index = date) 
-
-unemployment_test_ts <- unemployment %>% 
-    as_tsibble(index = date)
-
-#Seasonal subseries
+# Subseries of the training set
 unemployment_train_ts  %>%  
     gg_subseries(unemployed) +
-    labs(x = "Month", y = "Unemployment level")
+    labs(x = "Month", 
+         y = "Unemployment level")
 
-# Train series
+# Unemployment level in US by traning set
 unemployment_train_ts   %>%  
     ggplot() +
     geom_line(aes(x = date, y = unemployed, col = "Training data")) +
-    labs(   title = "Unemployment",
-            subtitle = "Train [1995-2018]",
-            y = "Unemployment level",
-            x = "Month") +
+    labs(title = "Unemployment",
+         subtitle = "Train [1995-2018]",
+         y = "Unemployment level",
+         x = "Month") +
     guides(col = FALSE) 
 
 
 ###############################################################################################
-################################### Decomposition by various methods ##########################
+##########################  Decomposition by various methods ##################################
 ###############################################################################################
-x13_seas <- seas(ts(unemployment_train %>% select(unemployed), start = c("1995"), frequency = 12))
 
-x11_seas <- seas(ts(unemployment_train %>% select(unemployed), start = c("1995"), frequency = 12), x11 = "")
+# x11 season
+x11_seas <- seas(ts(unemployment_train %>% select(unemployed), 
+                    start = c("1995"), 
+                    frequency = 12), 
+                 x11 = "")
 
-#Convert results to dataframe
-x13_dcmp <- data.frame(x13_seas) %>% 
-    left_join(select(unemployment_train_ts, unemployed), by = "date") %>% 
-    select(-adjustfac, -final)  %>% 
-    mutate(date = yearmonth(date))  %>%
-    as_tsibble(index = date)
+# x11 season
+x13_seas <- seas(ts(unemployment_train %>% select(unemployed), 
+                    start = c("1995"), 
+                    frequency = 12))
 
+# x11 decompoising with feasts
+x11_dcmp_feasts <- unemployment_train_ts  %>% 
+    model(x11 = feasts:::X11(unemployed, 
+                             type = "additive"))  %>% 
+    components()
 
+# x11 decomposing with seas
 x11_dcmp <- data.frame(x11_seas) %>%
-    left_join(select(unemployment_train_ts, unemployed), by = "date") %>% 
+    left_join(select(unemployment_train_ts, unemployed), 
+              by = "date") %>% 
     select(-adjustfac, -final)  %>% 
     mutate(date = yearmonth(date)) %>% 
     as_tsibble(index = date)
 
+# x13 decomposing with seas
+x13_dcmp <- data.frame(x13_seas) %>% 
+    left_join(select(unemployment_train_ts, unemployed), 
+              by = "date") %>% 
+    select(-adjustfac, -final)  %>% 
+    mutate(date = yearmonth(date))  %>%
+    as_tsibble(index = date)
 
-x11_dcmp_feasts <- unemployment_train_ts  %>% 
-    model(x11 = feasts:::X11(unemployed, type = "additive"))  %>% 
-    components()
-
-stl <- unemployment_train_ts %>%
+# STL decomposition
+stl_dcmp <- unemployment_train_ts %>%
     model(
-        STL(unemployed ~ trend(window = 7) +
-                season(window = "periodic"),
+        STL(unemployed ~ trend(window = 7) + season(window = "periodic"),
             robust = TRUE)) %>%
     components()
 
+# Plot of the various decomposition methods
 ggplot() +
+    geom_line(aes(x = date, y = seasonal_unemployed, col = "Unemployment US SA"), data = unemployment_train_ts) +
     geom_line(aes(x = date, y = seasonaladj, col = "x13 SA"), data = x13_dcmp) +
-    geom_line(aes(x= date, y = seasonal_unemployed, col = "Unemployment US SA"), data = unemployment_train_ts) +
-    geom_line(aes(x= date, y = seasonaladj, col = "x11 SA"), data = x11_dcmp ) +
-    geom_line(aes(x= date, y = season_adjust, col = "STL SA"), data = stl)
+    geom_line(aes(x = date, y = seasonaladj, col = "x11 SA"), data = x11_dcmp ) +
+    geom_line(aes(x = date, y = season_adjust, col = "STL SA"), data = stl_dcmp) +
+    labs(title = "Replication of the seasonal adjusted data",
+         y     = "Seasonal Adjusted Unemployment level") +
+    guides(colour = guide_legend("Decomposition method:"))
 
+# Compare RMSE to find closest fit to original seasonal adjusted unemployment data of US
+bind_cols(
+    "Accuracy method" = "RMSE",
+    "x11 fests" = sqrt(mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp_feasts$season_adjust)^2)),
+    x11 = sqrt(mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp$seasonaladj)^2)),
+    x13 = sqrt(mean((unemployment_train_ts$seasonal_unemployed - x13_dcmp$seasonaladj)^2)),
+    stl = sqrt(mean((unemployment_train_ts$seasonal_unemployed - stl_dcmp$season_adjust)^2))
+) 
 
-
-#Compare RMSE to find closest fit to original US labor statistics decomposition
-
-# x13 with seas
-sqrt(mean((unemployment_train_ts$seasonal_unemployed - x13_dcmp$seasonaladj)^2))
-
-## X11 with feasts
-sqrt(mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp_feasts$season_adjust)^2))
-
-# X11 with seas
-sqrt(mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp$seasonaladj)^2))
-
-# stl 
-sqrt(mean((unemployment_train_ts$seasonal_unemployed - stl$season_adjust)^2))
-
-
-# Decomposing of the series ----------------------------------------------------
-x13_dcmp %>% 
-    select(-seasonaladj) %>% 
-    pivot_longer(cols = seasonal:unemployed,
-                 names_to = "components",
-                 values_to = "values") %>% 
-    autoplot() +
-    facet_grid(vars(components),
-               scales = "free_y") +
-    labs(title = "X13 decomposition of Unemployment US",
-         subtitle = "unemployed = trend + seasonal + irregular",
-         y = "Unemployment level",
-         x = "Month") +
-    guides(colour = FALSE)
-
+# x11 decomposed plot
 x11_dcmp %>% 
     select(-seasonaladj) %>% 
     pivot_longer(cols = seasonal:unemployed,
@@ -195,8 +190,23 @@ x11_dcmp %>%
          x = "Month") +
     guides(colour = FALSE)
 
+# x13 decomposed plot
+x13_dcmp %>% 
+    select(-seasonaladj) %>% 
+    pivot_longer(cols = seasonal:unemployed,
+                 names_to = "components",
+                 values_to = "values") %>% 
+    autoplot() +
+    facet_grid(vars(components),
+               scales = "free_y") +
+    labs(title = "X13 decomposition of Unemployment US",
+         subtitle = "unemployed = trend + seasonal + irregular",
+         y = "Unemployment level",
+         x = "Month") +
+    guides(colour = FALSE)
 
-stl %>%
+# x11 decomposed plot
+stl_dcmp %>%
     pivot_longer(cols = unemployed:remainder,
                  names_to = "components",
                  values_to = "values") %>% 
@@ -210,14 +220,19 @@ stl %>%
     guides(colour = FALSE)
 
 
+########################################################################################
+######################## FORECASTING OF DECOMPOSITION ##################################
+########################################################################################
 # Choosing X11 because of best RMSE
+# Forecast indivial compnents of the X11 decomposition
 
+# Testset of the best decomposition method
+x11_seas_test <- seas(ts(unemployment %>% select(unemployed), 
+                         start = c("1995"), 
+                         frequency = 12), 
+                      x11 = "")
 
-### Forecast indivial compnents of the X11 decomposition
-
-#Decompose a test time series
-x11_seas_test <- seas(ts(unemployment %>% select(unemployed), start = c("1995"), frequency = 12), x11 = "")
-
+# Decomposed in seasonal, trend and irregularities of testset
 x11_dcmp_test <- data.frame(x11_seas_test) %>%
     left_join(select(unemployment_test_ts, unemployed), by = "date") %>% 
     select(-adjustfac, -final, -seasonaladj)  %>% 
@@ -227,7 +242,7 @@ x11_dcmp_test <- data.frame(x11_seas_test) %>%
                  names_to = "components",
                  values_to = "values") 
 
-
+# Forecasting of traningset decomposition using seasonal adjusted data
 x11_dcmp %>%
     select(date, seasonaladj) %>% 
     model(Mean = MEAN(seasonaladj),
@@ -241,8 +256,8 @@ x11_dcmp %>%
          y = "Unemployment level",
          x = "Month")
 
-
-x11_dcmp %>% 
+# Train with mean, drift, naive, snaive, ets models 
+x11_models <- x11_dcmp %>% 
     select(-seasonaladj) %>%
     pivot_longer(cols = seasonal:unemployed,
                  names_to = "components",
@@ -251,7 +266,10 @@ x11_dcmp %>%
           Drift = RW(values ~ drift()),
           Naive = NAIVE(values),
           SNaive = SNAIVE(values ~ lag("year")),
-          ETS = ETS(values))  %>% 
+          ETS = ETS(values)) # HUKS Å SJEKKE ETS!!!!!!!!!!!!!!!!!!!!!!!!!
+
+# Forecasting each of the individual decomposed series 
+x11_models  %>% 
     forecast(h = 12)  %>% 
     autoplot(level = NULL) +
     autolayer(x11_dcmp_test %>% filter(year(date) >= 2007)) +
@@ -263,39 +281,22 @@ x11_dcmp %>%
          x = "Month")  # HUSK Å FIKSE LEGENDS
 
 
-
-### Model types
-x11_models <- x11_dcmp %>% 
-    select(-seasonaladj) %>%
-    pivot_longer(cols = seasonal:unemployed,
-                 names_to = "components",
-                 values_to = "values") %>% 
-    model(Mean = MEAN(values),
-          Drift = RW(values ~ drift()),
-          Naive = NAIVE(values),
-          SNaive = SNAIVE(values ~ lag("year")),
-          ETS = ETS(values)) # HUKS Å SJEKKE ETS!!!
-
-
-
-#source("cross_validation.r")
-
-
-
-
-### ETS model ------------------------------------------------------------------
-################### WITHOUT CV ###########################################
+##################################################################################
+################################ ETS model #######################################
+##################################################################################
+# Fitting the trainingset with the best ETS model by minimizing AICc
 fit_ets <- unemployment_train_ts %>%
     select(date, unemployed) %>% 
-    model(ETS(unemployed)) # Finds the optimal ETS by minimizing AICc
+    model(ETS(unemployed)) 
 
 fit_ets # Error: Additive, Trend: Additive damped, Seasonal: Additive
 
-ets_dcmp <- fit_ets %>% 
+# ETS decomposition plot
+fit_ets %>% 
     components() %>%
     autoplot()
-ets_dcmp
 
+# Forecasting with seasonal adjusted 
 fit_ets %>% 
     forecast(h = 12) %>% 
     autoplot(level = 95) +
@@ -326,12 +327,16 @@ accuracy_ets
 #################################### CROSS VALIDATION #######################################
 #############################################################################################
 
-# Cross validation set for ETS and ARIMA forecast models ------------------------------------
+# Cross validation set for ETS and ARIMA forecast models
 unemployment_train_ts_cv <- unemployment %>% 
     as_tsibble(index = date) %>% 
     stretch_tsibble(.init = 12, .step = 1) 
 
 
+
+
+unemployment_train_ts_cv %>% 
+    filter(.id ==3) %>% nrow()
 
 
 
@@ -345,7 +350,7 @@ unemployment_train_ts_cv <- unemployment %>%
 
 
 ## Store as R.data file
-load("../Data/model_cv_fits.Rdata" )
+load("../Data/model_cv_fits.Rdata")
 #save(fit_ets_cv, file = "../Data/model_cv_fits.Rdata")
 
 
@@ -425,15 +430,23 @@ unemployment_train_ts_stationarity %>%
     gg_tsdisplay(diff_unemployed, plot_type = "partial")
 
 
-fit_arima311011 <- unemployment_train_ts %>% 
+fit_arima311011 <- unemployment_train_ts_cv %>% 
     select(date, unemployed) %>% 
     model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)))
 
 
 report(fit_arima311011)
 fc_arima311011 <- fit_arima311011 %>% 
-    forecast(h = 12)
+    forecast(h = 12) 
+    
+fc_arima311011  %>% 
+    ggplot() +
+    geom_line(aes(x = date, y = .mean, col = "forecast arima")) + 
+    geom_line(aes(x = date, y = unemployed, col = "original data"), data = unemployment)
+    
 
+sqrt(mean((unemployment_test$unemployed - fc_arima311011$.mean)^2))
+fc_arima311011  %>% accuracy(unemployment)
 
 
 #************************USING UNEMPLOYED**************************************#
