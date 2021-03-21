@@ -280,11 +280,11 @@ Optimale vindu
 
 Accuracyen av denne typen validering gjøres ved å ta snittet av test sets (5.10 i boken)
 "
-unemployment_train_ts_cv <- unemployment %>% 
-    as_tsibble(index = date) %>% 
-    stretch_tsibble(.init = 8, .step = 1) 
-
-unemployment_train_ts_cv 
+# unemployment_train_ts_cv <- unemployment %>% 
+#     as_tsibble(index = date) %>% 
+#     stretch_tsibble(.init = 8, .step = 1) 
+# 
+# unemployment_train_ts_cv 
     
 
 
@@ -326,7 +326,7 @@ accuracy_ets <- bind_rows(
     arrange(RMSSE)
 accuracy_ets
 
-# Accuracy of ETS by cross-validation 
+# Accuracy of ETS by cross-validation ------------------------------------
 unemployment_train_ts_cv <- unemployment %>% 
     as_tsibble(index = date) %>% 
     stretch_tsibble(.init = 12, .step = 1) 
@@ -337,10 +337,23 @@ fit_ets_cv <- unemployment_train_ts_cv %>%
 fc_ets_cv <- fit_ets_cv %>% 
     forecast(h = 12)
 
-bind_rows(
-    fit_ets_cv %>% accuracy(),
-    fc_ets_cv %>% accuracy(unemployment_train_ts_cv)
-)    
+accuracy_ets_cv <- bind_rows(
+    fit_ets_cv %>% accuracy() #,
+    #fc_ets_cv %>% accuracy(unemployment_train_ts_cv)
+    ) %>%
+    select(-ME, -MPE, -ACF1) %>% 
+    arrange(RMSSE)
+
+accuracy_ets_cv #%>% 
+    #filter(.type == "Test")
+
+fit_ets_cv %>%
+    filter(.id == 185) %>% 
+    forecast(h = 12) %>% 
+    autoplot(unemployment_train_ts_cv)  # FINNE UT HVORDAN VI VELGER RIKTIG FORECAST DATO!!
+
+"Vi må finne ut korleis vi sjekka accuracy på test(mulig det er snittet av testene)
+fra denne skal vi då PLUKKE DEN BESTE MODELLEN MED MINST RMSSE!!"
 
 #### ARIMA ---------------------------------------------------------------------
 unemployment_train_ts  %>% 
