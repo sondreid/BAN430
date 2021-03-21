@@ -280,7 +280,7 @@ Optimale vindu
 "
 
 
-### ETS model ###
+### ETS model ------------------------------------------------------------------
 fit_ets <- unemployment_train_ts %>%
     select(date, unemployed) %>% 
     model(ETS(unemployed)) # Finds the optimal ETS by minimizing AICc
@@ -300,8 +300,16 @@ fit_ets %>%
          y = "Unemployment level",
          x = "Month")
 
+# Accuracy of ETS by train and test
+accuracy_ets <- bind_rows(
+        fit_ets %>% accuracy(),
+        fit_ets %>% forecast(h = 12) %>% accuracy(unemployment_test_ts)
+    ) %>% 
+    select(-ME, -MPE, -ACF1)
+accuracy_ets
 
-#### ARIMA ---------------------------
+
+#### ARIMA ---------------------------------------------------------------------
 unemployment_train_ts  %>% 
     features(unemployed, ljung_box, lag = 10) # Problems with autocorrelation
 
@@ -376,41 +384,47 @@ arima_optimal %>%
 
 #************************USING UNEMPLOYED**************************************#
 # Finding the global optimal ARIMA-model by minimizing AICc
-arima_optimal <- unemployment_train_ts %>% 
+fit_arima_optimal <- unemployment_train_ts %>% 
     select(date, unemployed) %>% 
     model(ARIMA_optimal = ARIMA(unemployed, 
                                 stepwise = FALSE,
                                 approximation = FALSE))
-arima_optimal # Non-seasonal part (p,d,q) = (3,0,1) and Seasonal-part (P,D,Q)m = (0,1,1)12
+fit_arima_optimal # Non-seasonal part (p,d,q) = (3,0,1) and Seasonal-part (P,D,Q)m = (0,1,1)12
 
-arima_optimal %>% 
-    glance(arima_optimal) # check out the AICc
+fit_arima_optimal %>% 
+    glance() # check out the AICc
 
 
-# Checking for problems with non-stationarity, acf or normal-distribution
-arima_optimal %>% 
+# Checking for problems with non-stationarity, acf or normal-distribution ------
+fit_arima_optimal %>% 
     gg_tsresiduals() # Does not seems to be sign of correlation in resduals, and the histogram shows a normally distributed, this means that the prediction interval will be ok. 
 
-arima_optimal %>% 
+fit_arima_optimal %>% 
     augment() %>% 
     features(.innov, ljung_box, lag = 34, dof = 4) # KVIFOR ER DET FORSKJELLIG SVAR ETTER ENDRING AV LAG OG DOF?????
 
-arima_optimal %>% 
+fit_arima_optimal %>% 
     forecast(h = 12) %>% 
     autoplot(unemployment_test_ts %>% filter(year(date) >= 2017), 
              level = 95) +
     labs(title = "Forecast of unemployment with ARIMA",
-         subtitle = arima_optimal$ARIMA_optimal,
+         subtitle = fit_arima_optimal$ARIMA_optimal,
          y = "Unemployment level", 
          x = "Month")
 
-fc_arima_optimal <- arima_optimal %>% 
+fc_arima_optimal <- fit_arima_optimal %>% 
     forecast(h = 12)
 
-# RMSE of ARIMA-optimal
+# RMSE of ARIMA-optimal; two methods -------------------------------------------
 sqrt(mean((unemployment_test$unemployed - fc_arima_optimal$.mean)**2))
 accuracy(fc_arima_optimal, unemployment_test_ts) # Testing the accuracy of the forecast
 
+accuracy_arima  <- bind_rows(
+    fit_arima_optimal %>% accuracy(),
+    fc_arima_optimal %>% accuracy(unemployment_test_ts)) %>%
+    select(-ME, -MPE, -ACF1)
+accuracy_arima
+    
 
 "When comparing models using AICc, the most important part is that
 the models have the same differecing order (I).
@@ -418,7 +432,13 @@ the models have the same differecing order (I).
 Even if the all the models does not pass a ljung-box test (prediction interval cannot
 be interpreted), we can still forecast"
 
-
+# Comparing ETS vs ARIMA -------------------------------------------------------
+accuracy_models <- bind_rows(
+    accuracy_ets,
+    accuracy_arima
+    ) %>% 
+    arrange(RMSSE) # Root mean square standardized effect
+accuracy_models
 
 
 
