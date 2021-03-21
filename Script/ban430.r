@@ -1,8 +1,15 @@
+###############################################################################
+################ Working Directory for Windows and Mac ########################
+###############################################################################
 
 #setwd("G:/Dokumenter/Google drive folder/NHH/Master/BAN430/Repository/Script")
 #setwd("/Users/olaiviken/Documents/BAN430/BAN430/Data")
+#Sys.setenv(X13_PATH = "/Users/olaiviken/Documents/BAN430/BAN430/x13binary/bin")
+#Sys.setenv(X13_PATH = "../windows_x13/bin")
 
-### Libraries ----
+###############################################################################
+############################# LIBRARIES #######################################
+###############################################################################
 library(fpp3)
 library(readxl)
 library(lubridate)
@@ -10,13 +17,13 @@ library(magrittr)
 library(feasts)
 library(seasonal)
 library(x13binary)
-#Sys.setenv(X13_PATH = "/Users/olaiviken/Documents/BAN430/BAN430/x13binary/bin")
-#Sys.setenv(X13_PATH = "../windows_x13/bin")
 checkX13()
 
+
+##############################################################################
+########################### DATA RETRIEVAL ###################################
+##############################################################################
 df <- read_xls("../Data/US/Forecasting_economic_data.xls", sheet = 2)
-
-
 clear_names <- c(   "date", 
                     "seasonal_unemp_men", 
                     "seasonal_unemp_women", 
@@ -30,28 +37,15 @@ clear_names <- c(   "date",
                     "unemp_high_school",
                     "unemp_college", 
                     "seasonal_unemployed")
-
 colnames(df) <- clear_names
 
-# unemployment %>% 
-#     ggplot() +
-#     geom_line(aes(x = date, y = unemployed, col = "Unadjusted seasonal")) +
-#     geom_line(aes(x = date, y = seasonal_unemployed, col = "Adjusted seasonal")) +
-#     labs(   title = "Unemployment in USA",
-#             subtitle = "Seasonal adj. vs non adj.",
-#             y = "Unemployment level",
-#             x = "Months") +
-#     guides(col = guide_legend(title = "Series:")) 
-
-#unemployment  %>% 
-#    model(classical_decomposition(unemployed, type = "additive"))
-
-
+#################################################################################
+########################### TRAINING AND TEST ###################################
+#################################################################################
 unemployment <- df  %>% 
     mutate(date = yearmonth(date))  %>% 
     filter(year(date) >= 1995 & year(date) <= 2019)   %>% 
     select(date, unemployed, seasonal_unemployed)   
-
 
 unemployment_train <- unemployment  %>% 
     filter(year(date) <= 2018)  %>% 
@@ -61,12 +55,26 @@ unemployment_test <- unemployment  %>%
     filter(year(date) > 2018)  %>% 
     select(date, unemployed, seasonal_unemployed)
 
+###################################################################################
+############################ DESCRIPTIV STATISTICS ################################
+###################################################################################
+unemployment %>% 
+     ggplot() +
+     geom_line(aes(x = date, y = unemployed, col = "Unadjusted seasonal")) +
+     geom_line(aes(x = date, y = seasonal_unemployed, col = "Adjusted seasonal")) +
+     labs(   title = "Unemployment in USA",
+             subtitle = "Seasonal adj. vs non adj.",
+             y = "Unemployment level",
+             x = "Months") +
+    guides(col = guide_legend(title = "Series:")) 
 
-###### Summary statistics #########
+
+###################################################################################
+######################## Summary statistics ##############################
+##########################################################################
 
 
 ### Mean, median etc.
-
 
 unemployment_train  %>% 
     mutate(month = lubridate::month(date))  %>%
@@ -102,8 +110,9 @@ unemployment_train_ts   %>%
     guides(col = FALSE) 
 
 
-
-## SEAS X13
+###############################################################################################
+################################### Decomposition by various methods ##########################
+###############################################################################################
 x13_seas <- seas(ts(unemployment_train %>% select(unemployed), start = c("1995"), frequency = 12))
 
 x11_seas <- seas(ts(unemployment_train %>% select(unemployed), start = c("1995"), frequency = 12), x11 = "")
@@ -313,12 +322,23 @@ accuracy_ets <- bind_rows(
     arrange(RMSSE)
 accuracy_ets
 
+#############################################################################################
+#################################### CROSS VALIDATION #######################################
+#############################################################################################
+
 # Cross validation set for ETS and ARIMA forecast models ------------------------------------
 unemployment_train_ts_cv <- unemployment %>% 
     as_tsibble(index = date) %>% 
     stretch_tsibble(.init = 12, .step = 1) 
 
 
+
+
+
+
+#############################################################################################
+#################################### ETS MODEL #######################################
+#############################################################################################
 
 #fit_ets_cv <- unemployment_train_ts_cv %>% 
  #   model(ETS(unemployed))
@@ -407,7 +427,7 @@ unemployment_train_ts_stationarity %>%
 
 fit_arima311011 <- unemployment_train_ts %>% 
     select(date, unemployed) %>% 
-    model(fit_arima311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)))
+    model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)))
 
 
 report(fit_arima311011)
@@ -457,6 +477,14 @@ fc_arima_optimal <- fit_arima_optimal %>%
 sqrt(mean((unemployment_test$unemployed - fc_arima_optimal$.mean)^2))
 
 
+### Plot AIC optimal ARIMA vs Custom ARIma
+unemployment_test_ts %>%  
+    filter(year(date) >= 2017)  %>% 
+    ggplot() +
+    geom_line(aes(x= date, y = unemployed, col = "Original data")) +
+    geom_line(aes(x = date, y = .mean, col = "fc_arima_optimal"), data =  fc_arima_optimal) + 
+    geom_line(aes(x = date, y = .mean, col = "fc_arima311011"), data =  fc_arima311011) +
+    labs(title = "Forecasting of unemployment US")
 
 accuracy_arima  <- bind_rows(
     fit_arima_optimal %>% accuracy(),
