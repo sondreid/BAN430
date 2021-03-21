@@ -86,9 +86,6 @@ unemployment_train_ts <-  unemployment_train %>%
 unemployment_test_ts <- unemployment %>% 
     as_tsibble(index = date)
 
-unemployment_test_ts <- unemployment %>% 
-    as_tsibble(index = date)
-
 #Seasonal subseries
 unemployment_train_ts  %>%  
     gg_subseries(unemployed) +
@@ -227,7 +224,7 @@ x11_dcmp %>%
     model(Mean = MEAN(seasonaladj),
           Drift = RW(seasonaladj ~ drift()),
           Naive = NAIVE(seasonaladj),
-          SNaive = SNAIVE(seasonaladj ~ lag("year"))) %>% 
+          Holt =  ETS(seasonaladj ~ error("A") + trend("A") + season("N"))) %>% 
     forecast(h = 12) %>% 
     autoplot(level = NULL) +
     autolayer(unemployment_test_ts  %>% filter(year(date) >= 2007), unemployed) +
@@ -271,24 +268,14 @@ x11_models <- x11_dcmp %>%
           ETS = ETS(values)) # HUKS Å SJEKKE ETS!!!
 
 
-## Cross validation
 
 #source("cross_validation.r")
-" Cross validate.
-Finne rett steg
-Optimale vindu
 
-Accuracyen av denne typen validering gjøres ved å ta snittet av test sets (5.10 i boken)
-"
-# unemployment_train_ts_cv <- unemployment %>% 
-#     as_tsibble(index = date) %>% 
-#     stretch_tsibble(.init = 8, .step = 1) 
-# 
-# unemployment_train_ts_cv 
-    
+
 
 
 ### ETS model ------------------------------------------------------------------
+################### WITHOUT CV ###########################################
 fit_ets <- unemployment_train_ts %>%
     select(date, unemployed) %>% 
     model(ETS(unemployed)) # Finds the optimal ETS by minimizing AICc
@@ -365,7 +352,9 @@ fit_ets_cv %>%
 "Vi må finne ut korleis vi sjekka accuracy på test(mulig det er snittet av testene)
 fra denne skal vi då PLUKKE DEN BESTE MODELLEN MED MINST RMSSE!!"
 
-#### ARIMA ---------------------------------------------------------------------
+################################################################################
+################################## ARIMA #######################################
+################################################################################
 unemployment_train_ts  %>% 
     features(unemployed, ljung_box, lag = 10) # Problems with autocorrelation
 
@@ -379,8 +368,15 @@ unemployment_train_ts %>%
 unemployment_train_ts %>% 
     features(unemployed, unitroot_ndiffs)
 
+unemployment_train_ts_season_diff <- unemployment_train_ts  %>% 
+    mutate(diff_season_unemployed = difference(unemployed, 12))
+
 unemployment_train_ts_stationarity <- unemployment_train_ts %>% 
     mutate(diff_unemployed = difference(unemployed)) 
+
+
+unemployment_train_ts_season_diff %>% 
+    features(diff_season_unemployed, unitroot_kpss) # p-value of 5.49%, no need for more differencing.
 
 unemployment_train_ts_stationarity %>% 
     features(diff_unemployed, unitroot_kpss) # p-value of 10%, no need for more differencing.
@@ -409,39 +405,16 @@ unemployment_train_ts_stationarity %>%
     gg_tsdisplay(diff_unemployed, plot_type = "partial")
 
 
-#******************************USING DIFFERENCE UNEMPLOYED*********************#
-# Finding the global optimal ARIMA-model by minimizing AICc
-arima_optimal <- unemployment_train_ts_stationarity %>% 
-    select(date, diff_unemployed) %>% 
-    model(ARIMA_optimal = ARIMA(diff_unemployed, 
-                                stepwise = FALSE,
-                                approx = FALSE))
-arima_optimal
-
-arima_optimal %>% 
-    glance(arima_optimal) # check out the AICc
-
-
-# Checking for problems with non-stationarity, acf or normal-distribution
-arima_optimal %>% 
-    gg_tsresiduals()
-
-arima_optimal %>% 
-    augment() %>% 
-    features(.innov, ljung_box, lag = 24, dof = 3) # KVIFOR ER DET FORSKJELLIG SVAR ETTER ENDRING AV LAG OG DOF?????
-
-#arima_optimal %>% 
-#    forecast(h = 12) %>% 
-#    autoplot(unemployment_test_ts %>% 
-#                 mutate(diff_unemployed = difference(unemployed)) %>% 
-#                 filter(year(date) >= 2007), 
-#             level = 95) 
-    #autolayer(unemployment_test_ts)
-
-
-arima_optimal <- unemployment_train_ts_stationarity %>% 
+fit_arima311011 <- unemployment_train_ts %>% 
     select(date, unemployed) %>% 
-    model(ARIMA_optimal = ARIMA(unemployment ~ pdq(0,0,0) + PDQ(0,1,0) + )
+    model(fit_arima311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)))
+
+
+report(fit_arima311011)
+fc_arima311011 <- fit_arima311011 %>% 
+    forecast(h = 12)
+
+
 
 #************************USING UNEMPLOYED**************************************#
 # Finding the global optimal ARIMA-model by minimizing AICc
@@ -451,6 +424,8 @@ fit_arima_optimal <- unemployment_train_ts %>%
                                 stepwise = FALSE,
                                 approximation = FALSE))
 fit_arima_optimal # Non-seasonal part (p,d,q) = (3,0,1) and Seasonal-part (P,D,Q)m = (0,1,1)12
+
+report(fit_arima_optimal)
 
 fit_arima_optimal %>% 
     glance() # check out the AICc
@@ -473,18 +448,23 @@ fit_arima_optimal %>%
          y = "Unemployment level", 
          x = "Month")
 
+
+
 fc_arima_optimal <- fit_arima_optimal %>% 
     forecast(h = 12)
 
 # RMSE of ARIMA-optimal; two methods -------------------------------------------
 sqrt(mean((unemployment_test$unemployed - fc_arima_optimal$.mean)^2))
-accuracy(fc_arima_optimal, unemployment_test_ts) # Testing the accuracy of the forecast
+
+
 
 accuracy_arima  <- bind_rows(
     fit_arima_optimal %>% accuracy(),
-    fc_arima_optimal %>% accuracy(unemployment_test_ts)
+    fc_arima_optimal %>% accuracy(unemployment_test_ts),
+    fit_arima311011  %>% accuracy(),
+    fc_arima311011  %>%  accuracy(unemployment_test_ts)
     ) %>%
-    select(-ME, -MPE, -ACF1) %>% 
+    select(.model:RMSSE)  %>% 
     arrange(RMSSE)
 accuracy_arima
     
