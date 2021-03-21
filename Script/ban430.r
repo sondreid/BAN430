@@ -277,7 +277,15 @@ x11_models <- x11_dcmp %>%
 " Cross validate.
 Finne rett steg
 Optimale vindu
+
+Accuracyen av denne typen validering gjøres ved å ta snittet av test sets (5.10 i boken)
 "
+unemployment_train_ts_cv <- unemployment %>% 
+    as_tsibble(index = date) %>% 
+    stretch_tsibble(.init = 8, .step = 1) 
+
+unemployment_train_ts_cv 
+    
 
 
 ### ETS model ------------------------------------------------------------------
@@ -300,14 +308,39 @@ fit_ets %>%
          y = "Unemployment level",
          x = "Month")
 
+# Checking for problems with non-stationarity, acf or normal-distribution ------
+fit_ets %>% 
+    gg_tsresiduals() # The residuals does not seem to have sign of correlation, the histogram is a little bit skewed but seems to be normally distributed. We can use the prediction interval.  
+
+fit_ets %>% 
+    augment() %>% 
+    features(.innov, ljung_box, lag = 34, dof = 4) # p-value of 3.61% under the 5%-significance level indicates that the autocorrelation comes from white-noise --> OK
+
+
 # Accuracy of ETS by train and test
 accuracy_ets <- bind_rows(
         fit_ets %>% accuracy(),
         fit_ets %>% forecast(h = 12) %>% accuracy(unemployment_test_ts)
     ) %>% 
-    select(-ME, -MPE, -ACF1)
+    select(-ME, -MPE, -ACF1) %>% 
+    arrange(RMSSE)
 accuracy_ets
 
+# Accuracy of ETS by cross-validation 
+unemployment_train_ts_cv <- unemployment %>% 
+    as_tsibble(index = date) %>% 
+    stretch_tsibble(.init = 12, .step = 1) 
+
+fit_ets_cv <- unemployment_train_ts_cv %>% 
+    model(ETS(unemployed))
+
+fc_ets_cv <- fit_ets_cv %>% 
+    forecast(h = 12)
+
+bind_rows(
+    fit_ets_cv %>% accuracy(),
+    fc_ets_cv %>% accuracy(unemployment_train_ts_cv)
+)    
 
 #### ARIMA ---------------------------------------------------------------------
 unemployment_train_ts  %>% 
@@ -421,8 +454,10 @@ accuracy(fc_arima_optimal, unemployment_test_ts) # Testing the accuracy of the f
 
 accuracy_arima  <- bind_rows(
     fit_arima_optimal %>% accuracy(),
-    fc_arima_optimal %>% accuracy(unemployment_test_ts)) %>%
-    select(-ME, -MPE, -ACF1)
+    fc_arima_optimal %>% accuracy(unemployment_test_ts)
+    ) %>%
+    select(-ME, -MPE, -ACF1) %>% 
+    arrange(RMSSE)
 accuracy_arima
     
 
