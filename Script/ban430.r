@@ -48,15 +48,15 @@ df <- read_xls("../Data/US/Forecasting_economic_data.xls", sheet = 2)  %>%
 #################################################################################
 unemployment <- df  %>% 
     mutate(date = yearmonth(date))  %>% 
-    filter(year(date) >= 1995 & year(date) <= 2019)   %>% 
+    filter(year(date) >= 2000 & year(date) <= 2019)   %>% 
     select(date, unemployed, seasonal_unemployed)   
 
 unemployment_train <- unemployment  %>% 
-    filter(year(date) <= 2018)  %>% 
+    filter(year(date) <= 2017)  %>% 
     select(date, unemployed, seasonal_unemployed)
 
 unemployment_test <- unemployment  %>% 
-    filter(year(date) > 2018)  %>% 
+    filter(year(date) > 2017)  %>% 
     select(date, unemployed, seasonal_unemployed)
 
 unemployment_train_ts <-  unemployment_train %>% 
@@ -356,7 +356,7 @@ fit_ets_cv %>%
 fra denne skal vi då PLUKKE DEN BESTE MODELLEN MED MINST RMSSE!!"
 
 ################################################################################
-################################## ARIMA #######################################
+########################### ARIMA PREPARATION ##################################
 ################################################################################
 # Plots of differenced unemployed, autocorrelation and partial autocorrelation
 unemployment_train_ts %>% 
@@ -364,19 +364,23 @@ unemployment_train_ts %>%
 
 
 unemployment_train_ts  %>% 
-    features(unemployed, ljung_box, lag = 10) # Problems with autocorrelation
+    features(unemployed, ljung_box, lag = 24) # Problems with autocorrelation
 
+# Unitroot KPSS test on unemployed
+unemployment_train_ts_stationarity %>% 
+    features(unemployed, unitroot_kpss)
 
 "Clearly non- stationary data with heavy trend in mean. Differencing first order makes mean stationary.
 Variance not an issue, if so then log-transform"
 
-unemployment_train_ts %>% mutate(diff_unemployed  = difference(unemployed)) %>% ACF(var = diff_unemployed) %>% autoplot()
+unemployment_train_ts %>% mutate(diff_unemployed  = difference(unemployed)) %>% ACF(var = diff_unemployed, lag_max = 24) %>% autoplot()
 
 " Significant lag at 12 and 24 months suggest seasonal autocorrelation. It is therefore necessary to perform a seasonal differencing operation."
 
 unemployment_train_ts_stationarity <- unemployment_train_ts %>% 
     mutate(diff_season_unemployed = difference(unemployed, 12),
-           diff_unemployed        = difference(unemployed))
+           diff_unemployed        = difference(unemployed),
+           diff_diff_season_unemployed = difference(diff_season_unemployed))
 
 
 
@@ -384,6 +388,7 @@ unemployment_train_ts_stationarity <- unemployment_train_ts %>%
 unemployment_train_ts_stationarity %>%  ACF(var = diff_season_unemployed) %>% autoplot()
 
 
+# number of diffs
 unemployment_train_ts_stationarity %>% 
     features(diff_season_unemployed, unitroot_ndiffs)
 
@@ -404,6 +409,10 @@ unemployment_train_ts_stationarity %>%
 unemployment_train_ts_stationarity %>% 
     features(diff_unemployed, unitroot_kpss) # p-value of 10%, no need for more differencing.
 
+
+unemployment_train_ts_stationarity %>% 
+    features(diff_diff_season_unemployed, unitroot_kpss)
+
 # Plotting unemployed and diff-unemployed
 unemployment_train_ts_stationarity %>% 
     select(-seasonal_unemployed) %>% 
@@ -414,37 +423,88 @@ unemployment_train_ts_stationarity %>%
     facet_grid(vars(components))
     
 # Autocorrelation of unemployed and diff-unemployed
+
 unemployment_train_ts_stationarity %>% 
     select(-seasonal_unemployed) %>% 
-    pivot_longer(cols = unemployed:diff_unemployed,
+    pivot_longer(cols = unemployed:diff_diff_season_unemployed,
                  names_to = "components",
                  values_to = "values") %>% 
-    ACF() %>% 
+    ACF(lag_max = 24) %>% 
     autoplot() +
     facet_grid(vars(components))
+
+unemployment_train_ts_stationarity %>% 
+    select(-seasonal_unemployed) %>% 
+    pivot_longer(cols = unemployed:diff_diff_season_unemployed,
+                 names_to = "components",
+                 values_to = "values") %>% 
+    PACF(lag_max = 24) %>% 
+    autoplot() +
+    facet_grid(vars(components))
+
 
 # Plots of differenced unemployed, autocorrelation and partial autocorrelation
 unemployment_train_ts_stationarity %>% 
     gg_tsdisplay(diff_unemployed, plot_type = "partial")
 
+unemployment_train_ts_stationarity %>% 
+    gg_tsdisplay(diff_season_unemployed, plot_type = "partial")
 
+
+################################################################################
+############################# ARIMA MODELLING ##################################
+################################################################################
+
+# Optimizing the best ARIMA model by minimizing AICc
+# ARIMA_optimal <- unemployment_train_ts %>% model(ARIMA_optimal = ARIMA(unemployed, ic = "aicc", stepwise = FALSE, approximation = FALSE))
+# ARIMA_optimal has Non-seasonal part pdq(5,1,0) and seasonal part PDQ(0,1,1) lag 12.
+
+# Different ARIMA models to fit the unemployment trainingset
 arima_manual_fits <- unemployment_train_ts %>% 
     select(date, unemployed) %>% 
-    model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1),
-          ARIMA111011 = ARIMA(unemployed ~ pdq(1,1,1) + PDQ(0,1,1)))
-          )
+    model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)),
+          ARIMA111011 = ARIMA(unemployed ~ pdq(1,1,1) + PDQ(0,1,1)),
+          ARIMA313011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)),
+          ARIMA510111 = ARIMA(unemployed ~ pdq(5,1,0) + PDQ(1,1,0)),
+          SNAIVE       = SNAIVE(unemployed),
+          ETS          = ETS(unemployed)
+          ) %>% 
+    bind_cols(ARIMA_optimal)
 
 
-report(arima_manual_fits)
-fc_arima311011 <- arima_manual_fits %>% 
-    forecast(h = 12)  %>% 
-    filter(year(date) <= 2019)
+
+# Accuracy of traningset and testset
+accuracy_arima <- bind_rows(
+    arima_manual_fits  %>% accuracy(),
+    arima_manual_fits  %>% forecast(h = 24)  %>%  accuracy(unemployment_test_ts)
+    )  %>% 
+    arrange(.type, MASE)  
+
+# Residualplot 
+arima_manual_fits  %>%
+    select(ARIMA_optimal) %>%
+    gg_tsresiduals()
+
+
+
+fc_arima_manual_fits <- arima_manual_fits %>% 
+    forecast(h = 24)   %>% 
+    filter(year(date) <= 2020)
     
-arima_manual_fits  %>% 
+fc_arima_manual_fits  %>% 
+    filter(.model %in% c("ARIMA_optimal", "ARIMA111011", "SNAIVE" ))  %>% 
     ggplot() +
-    geom_line(aes(x = date, y = .mean, col = "forecast arima")) + 
-    geom_line(aes(x = date, y = unemployed, col = "original data"), data = unemployment)
+    geom_line(aes(x = date, y = .mean, col = .model)) + 
+    geom_line(aes(x = date, y = unemployed), col = "black", data = unemployment_test_ts %>% filter(year(date) > 2015))
     
+
+
+arima_manual_fits  %>% 
+    augment()  %>% 
+    filter(.model %in% c("ARIMA311011", "ARIMA111011", "SNAIVE" ))  %>% 
+    autoplot(.fitted) +
+    autolayer(unemployment_train_ts, unemployed, col = "black")
+
 
 
 arima_manual_fits  %>% accuracy(unemployment_test_ts)
@@ -516,7 +576,6 @@ accuracy_arima
 
 "When comparing models using AICc, the most important part is that
 the models have the same differecing order (I).
-
 Even if the all the models does not pass a ljung-box test (prediction interval cannot
 be interpreted), we can still forecast"
 
@@ -527,11 +586,3 @@ accuracy_models <- bind_rows(
     ) %>% 
     arrange(RMSSE) # Root mean square standardized effect
 accuracy_models
-
-
-
-
-
-
-
-
