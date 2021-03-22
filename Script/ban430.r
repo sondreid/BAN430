@@ -399,7 +399,10 @@ accuracy_ets %>%
 # Cross validation set for ETS and ARIMA forecast models
 #unemployment_train_ts_cv <- unemployment %>% 
 #    as_tsibble(index = date) %>% 
+
 #   stretch_tsibble(.init = 12, .step = 1) 
+
+
 
 
 
@@ -441,13 +444,14 @@ fra denne skal vi då PLUKKE DEN BESTE MODELLEN MED MINST RMSSE!!"
 ################################################################################
 # Plots of differenced unemployed, autocorrelation and partial autocorrelation
 unemployment_train_ts %>% 
-    gg_tsdisplay(unemployed, plot_type = "partial", lag_max = 24)
+
 
 ggtsdisplay(unemployment_train_ts_stationarity$unemployed, 
             plot.type = "partial", 
             lag.max = 24, 
             theme = theme_bw(),
             main = "Non-stationary Unemployment level in US")
+
 
 
 unemployment_train_ts  %>% 
@@ -470,8 +474,6 @@ unemployment_train_ts_stationarity <- unemployment_train_ts %>%
            diff_diff_season_unemployed = difference(diff_season_unemployed))
 
 
-
-
 unemployment_train_ts_stationarity %>%  ACF(var = diff_season_unemployed) %>% autoplot()
 
 
@@ -490,8 +492,8 @@ unemployment_train_ts_stationarity %>%
 
 
 
-
 "From the PACF we can see that there is "
+
 unemployment_train_ts_stationarity %>% 
     features(diff_season_unemployed, unitroot_kpss) # p-value of 5.49%, might be need for differencing
 
@@ -502,6 +504,7 @@ unemployment_train_ts_stationarity %>%
 unemployment_train_ts_stationarity %>% 
     features(diff_diff_season_unemployed, unitroot_kpss)
 
+
 unemployment_train_ts_stationarity %>% 
     gg_tsdisplay(diff_diff_season_unemployed, plot_type = "partial", lag_max = 24)
 
@@ -510,6 +513,7 @@ ggtsdisplay(unemployment_train_ts_stationarity$diff_diff_season_unemployed,
             lag.max = 24, 
             theme = theme_bw(),
             main = "Difference of seasonal differenced Unemployment level in US")
+
 
 # Plotting unemployed and diff-unemployed
 unemployment_train_ts_stationarity %>% 
@@ -551,6 +555,7 @@ unemployment_train_ts_stationarity %>%
 
 
 
+
 ################################################################################
 ############################# ARIMA MODELLING ##################################
 ################################################################################
@@ -577,7 +582,7 @@ arima_manual_fits <- unemployment_train_ts %>%
 accuracy_arima <- bind_rows(
     arima_manual_fits  %>% accuracy(),
     arima_manual_fits  %>% forecast(h = 24)  %>%  accuracy(unemployment_test_ts)
-)  %>% 
+    )  %>% 
     arrange(.type, MASE)  
 
 # Residualplot 
