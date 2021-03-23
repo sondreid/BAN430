@@ -397,6 +397,44 @@ fit_ets %>%
     theme_bw() +
     theme(legend.position = "bottom")
 
+
+## Comparison with other methods
+
+models_ets_comparisons_naiv_snaive <-  unemployment_train_ts %>%
+    model(snaive = SNAIVE(unemployed),
+          naiv   = NAIVE(unemployed)) %>% forecast(h = 12) 
+
+
+fit_ets %>% 
+    forecast(h = 12) %>% 
+    ggplot() +
+    geom_line(aes(x = date, y  = .mean, col = "ETS(A, AD, A)")) +
+    geom_line(aes(x = date, y  = .mean, col = "Snaive"), data = models_ets_comparisons_naiv_snaive %>% filter(.model == "snaive")) + 
+    labs(title = "Forecast with ETS",
+         y = "Unemployment level",
+         x = "Month") +
+    theme_bw() +
+    guides(colour = guide_legend(title = "Legend")) +
+    theme(legend.position = "bottom")
+
+models_ets_comparisons <-  unemployment_train_ts %>%
+    model(snaive = SNAIVE(unemployed),
+          naiv   = NAIVE(unemployed)) %>% forecast(h = 12) %>%
+    bind_rows(fit_ets %>% 
+              forecast(h = 12)) %>% 
+    accuracy(unemployment_test_ts) %>% 
+    mutate(.model = c("ETS", "Naive", "SNaive")) %>% 
+    rename("Model" = .model) %>% 
+    select(-".type", -ACF1)
+
+
+
+models_ets_comparisons %>% 
+    kbl(caption = "ETS model compared with simple benchmark forecasting models", digits = 2) %>%
+    kable_classic(full_width = F, html_font = "Times new roman")
+
+
+
 # Checking for problems with non-stationarity, acf or normal-distribution ------
 
 # The residuals does not seem to have sign of correlation, the histogram is a little bit skewed but seems to be normally distributed. We can use the prediction interval.  
