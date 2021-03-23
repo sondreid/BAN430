@@ -350,7 +350,9 @@ fc_x11 %>%
 # Fitting the trainingset with the best ETS model by minimizing AICc
 fit_ets <- unemployment_train_ts %>%
     select(date, unemployed) %>% 
-    model(ETS(unemployed, ic = "aicc")) 
+    model(ETS_optimal = ETS(unemployed, ic = "aicc"),
+          "ETS(A,A,A)"  = ETS(unemployed ~ error("A") + trend("A") + season("N"),  ic = "aicc")
+          ) 
 
 fit_ets # Error: Additive, Trend: Additive damped, Seasonal: Additive
 
@@ -376,17 +378,9 @@ fit_ets %>%
     theme_bw() +
     guides(colour = "none")
     
-fit_ets %>% 
-       forecast(h = 24) %>% 
-       autoplot(level = 95) +
-       autolayer(unemployment_test_ts  %>% filter(year(date) >= 2007), unemployed) +
-        labs(title = "Forecast with ETS",
-             y = "Unemployment level",
-             x = "Month") +
-        theme_bw() +
-        theme(legend.position = "bottom")
+
     
-    
+### Forecast ETS with levels
 fit_ets %>% 
     forecast(h = 24) %>% 
     autoplot(level = 95) +
@@ -398,18 +392,21 @@ fit_ets %>%
     theme(legend.position = "bottom")
 
 
-## Comparison with other methods
+##################### Comparison with other methods ###################################
 
 models_ets_comparisons_naiv_snaive <-  unemployment_train_ts %>%
     model(snaive = SNAIVE(unemployed),
-          naiv   = NAIVE(unemployed)) %>% forecast(h = 12) 
+          naiv   = NAIVE(unemployed)) %>% 
+    forecast(h = 12) 
 
-
+# Plot vs simple forcecast methods
 fit_ets %>% 
     forecast(h = 12) %>% 
     ggplot() +
     geom_line(aes(x = date, y  = .mean, col = "ETS(A, AD, A)")) +
     geom_line(aes(x = date, y  = .mean, col = "Snaive"), data = models_ets_comparisons_naiv_snaive %>% filter(.model == "snaive")) + 
+    geom_line(aes(x = date, y  = .mean, col = "Naive"), data = models_ets_comparisons_naiv_snaive %>% filter(.model == "naiv")) + 
+    geom_line(aes(x = date, y  = unemployed, col = "Observed unemployment"), data = unemployment_test_ts %>% filter(year(date) > 2007, year(date) < 2019)) + 
     labs(title = "Forecast with ETS",
          y = "Unemployment level",
          x = "Month") +
@@ -423,12 +420,12 @@ models_ets_comparisons <-  unemployment_train_ts %>%
     bind_rows(fit_ets %>% 
               forecast(h = 12)) %>% 
     accuracy(unemployment_test_ts) %>% 
-    mutate(.model = c("ETS", "Naive", "SNaive")) %>% 
+    mutate(.model = c("ETS(A,A,A)", "ETS(A,Ad,A)", "Naive", "SNaive")) %>% 
+    arrange(MASE) %>% 
     rename("Model" = .model) %>% 
     select(-".type", -ACF1)
 
-
-
+# Comparisons with simpler forecast methods
 models_ets_comparisons %>% 
     kbl(caption = "ETS model compared with simple benchmark forecasting models", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
