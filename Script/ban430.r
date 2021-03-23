@@ -24,16 +24,16 @@ library(magrittr)
 library(forecast)
 library(feasts)
 library(seasonal)
-library(x13binary)
+#library(x13binary)
 library(kableExtra)
 
-checkX13()
+#checkX13()
 
 
 ###############################################################################
 ############################ DATA RETRIEVAL ###################################
 ###############################################################################
-df <- read_xls("../Data/US/Forecasting_economic_data.xls", sheet = 2)  %>% 
+df <- read_xls("../Data/US/unemployment_data.xls", sheet = 2)  %>% 
     `colnames<-`( c("date", 
                     "seasonal_unemp_men", 
                     "seasonal_unemp_women", 
@@ -175,10 +175,6 @@ x11_seas <- seas(ts(unemployment_train %>% select(unemployed),
                  x11 = "")
 
 
-x12_seas <- x12(ts(unemployment_train %>% select(unemployed), 
-                    start = c("2000"), 
-                    frequency = 12))
-
 # x11 season
 x13_seas <- seas(ts(unemployment_train %>% select(unemployed), 
                     start = c("2000"), 
@@ -303,7 +299,7 @@ x11_models <- x11_dcmp %>%
           Drift = RW(values ~ drift()),
           Naive = NAIVE(values),
           SNaive = SNAIVE(values ~ lag("year")),
-          ETS = ETS(values)) # HUKS Ã SJEKKE ETS!!!!!!!!!!!!!!!!!!!!!!!!!
+          ETS = ETS(values)) # HUKS ï¿½ SJEKKE ETS!!!!!!!!!!!!!!!!!!!!!!!!!
 
 # x11 forecasting each of the decomposition part
 fc_x11 <- x11_models %>% 
@@ -324,7 +320,7 @@ x11_models  %>%
     guides(colour = guide_legend(title = "Legend")) +
     theme_bw()  +
     theme(legend.position = "bottom")
-# HUSK Ã FIKSE LEGENDS
+# HUSK ï¿½ FIKSE LEGENDS
 
 
 # Forming forcaste of the test
@@ -397,11 +393,11 @@ fit_ets %>%
 models_ets_comparisons_naiv_snaive <-  unemployment_train_ts %>%
     model(snaive = SNAIVE(unemployed),
           naiv   = NAIVE(unemployed)) %>% 
-    forecast(h = 12) 
+    forecast(h = 24) 
 
 # Plot vs simple forcecast methods
 fit_ets %>% 
-    forecast(h = 12) %>% 
+    forecast(h = 24) %>% 
     ggplot() +
     geom_line(aes(x = date, y  = .mean, col = "ETS(A, AD, A)")) +
     geom_line(aes(x = date, y  = .mean, col = "Snaive"), data = models_ets_comparisons_naiv_snaive %>% filter(.model == "snaive")) + 
@@ -416,9 +412,9 @@ fit_ets %>%
 
 models_ets_comparisons <-  unemployment_train_ts %>%
     model(snaive = SNAIVE(unemployed),
-          naiv   = NAIVE(unemployed)) %>% forecast(h = 12) %>%
+          naiv   = NAIVE(unemployed)) %>% forecast(h = 24) %>%
     bind_rows(fit_ets %>% 
-              forecast(h = 12)) %>% 
+              forecast(h = 24)) %>% 
     accuracy(unemployment_test_ts) %>% 
     mutate(.model = c("ETS(A,A,A)", "ETS(A,Ad,A)", "Naive", "SNaive")) %>% 
     arrange(MASE) %>% 
