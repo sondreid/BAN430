@@ -10,8 +10,8 @@
 #Sys.setenv(X13_PATH = "../windows_x13/bin")
 
 
-# For installing the seasonal package without manual binary file
-install.packages("seasonal", type = "source") 
+" For installing the seasonal package without manual binary file"
+#install.packages("seasonal", type = "source") 
 
 
 ################################################################################
@@ -209,7 +209,7 @@ x13_dcmp <- data.frame(x13_seas) %>%
 # STL decomposition
 stl_dcmp <- unemployment_train_ts %>%
     model(
-        STL(unemployed ~ trend(window = 7) + season(window = "periodic"),
+        STL(unemployed ~ trend(window = 21) + season(window = 13),
             robust = TRUE)) %>%
     components()
 
@@ -228,13 +228,13 @@ ggplot() +
 
 # Compare RMSE to find closest fit to original seasonal adjusted unemployment data of US
 bind_cols(
-    "Accuracy method" = c("RMSE", "MAPE"),
+    "Accuracy method" = c("ME",  "RMSE",  "MAE", "MPE",   "MAPE" ),
     #"x11 feasts" = sqrt(mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp_feasts$season_adjust)^2)),
-    x11 = c((ts(x11_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:2]),
-    x13 = sqrt(mean((unemployment_train_ts$seasonal_unemployed - x13_dcmp$seasonaladj)^2)),
-    stl = sqrt(mean((unemployment_train_ts$seasonal_unemployed - stl_dcmp$season_adjust)^2))
+    X11 = c((ts(x11_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]),
+    X13 = c((ts(x13_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]),
+    STL = c((ts(stl_dcmp$season_adjust) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5])
 ) %>% 
-    kbl(caption = "RMSE of decomposing methods", digits = 2) %>%
+    kbl(caption = "Evaluation metrics of decomposition methods", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
 # x11 decomposed plot
@@ -293,19 +293,6 @@ x11_dcmp_test <- data.frame(x11_seas_test) %>%
                  names_to = "components",
                  values_to = "values") 
 
-# Forecasting of traningset decomposition using seasonal adjusted data
-# x11_dcmp %>%
-#     select(date, seasonaladj) %>% 
-#     model(Mean = MEAN(seasonaladj),
-#           Drift = RW(seasonaladj ~ drift()),
-#           Naive = NAIVE(seasonaladj),
-#           Holt =  ETS(seasonaladj ~ error("A") + trend("A") + season("N"))) %>% 
-#     forecast(h = 24) %>% 
-#     autoplot(level = NULL) +
-#     autolayer(unemployment_test_ts  %>% filter(year(date) >= 2007), unemployed) +
-#     labs(title = "Forecast with X11",
-#          y = "Unemployment level",
-#          x = "Month")
 
 # Train with mean, drift, naive, snaive, ets models 
 x11_models <- x11_dcmp %>%
@@ -359,10 +346,11 @@ fc_x11 %>%
 ##################################################################################
 ################################ ETS model #######################################
 ##################################################################################
+
 # Fitting the trainingset with the best ETS model by minimizing AICc
 fit_ets <- unemployment_train_ts %>%
     select(date, unemployed) %>% 
-    model(ETS(unemployed)) 
+    model(ETS(unemployed, ic = "aicc")) 
 
 fit_ets # Error: Additive, Trend: Additive damped, Seasonal: Additive
 
@@ -376,10 +364,29 @@ tidy(fit_ets) %>%
 # ETS decomposition plot
 fit_ets %>% 
     components() %>%
-    autoplot() +
-    theme_bw()
-
-# Forecasting with seasonal adjusted 
+    pivot_longer(cols = unemployed:remainder,
+                 names_to  = "components",
+                 values_to = "values") %>%
+    autoplot()+
+    facet_grid(vars(components),
+               scales = "free_y") +
+    labs(title = "ETS(A, AD, A)",
+         y = "Component unemployment level",
+         x = "Month") +
+    theme_bw() +
+    guides(colour = "none")
+    
+fit_ets %>% 
+       forecast(h = 24) %>% 
+       autoplot(level = 95) +
+       autolayer(unemployment_test_ts  %>% filter(year(date) >= 2007), unemployed) +
+        labs(title = "Forecast with ETS",
+             y = "Unemployment level",
+             x = "Month") +
+        theme_bw() +
+        theme(legend.position = "bottom")
+    
+    
 fit_ets %>% 
     forecast(h = 24) %>% 
     autoplot(level = 95) +
@@ -419,52 +426,8 @@ accuracy_ets %>%
     kbl(caption = "Accuracy of ETS(A,Ad,A)", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
-#############################################################################################
-#################################### CROSS VALIDATION #######################################
-#############################################################################################
-
-# Cross validation set for ETS and ARIMA forecast models
-#unemployment_train_ts_cv <- unemployment %>% 
-#    as_tsibble(index = date) %>% 
-
-#   stretch_tsibble(.init = 12, .step = 1) 
 
 
-
-
-
-
-#############################################################################################
-#################################### ETS MODEL Cross validation #######################################
-#############################################################################################
-
-## Store as R.data file
-load("../Data/model_cv_fits.Rdata")
-#save(fit_ets_cv, file = "../Data/model_cv_fits.Rdata")
-
-
-
-fc_ets_cv <- fit_ets_cv %>% 
-    forecast(h = 12) %>% 
-    filter(year(date) >= 2019)
-
-accuracy_ets_cv <- bind_rows(
-    fit_ets_cv %>% accuracy(),
-    fc_ets_cv %>% accuracy(unemployment %>% as_tsibble())
-) %>%
-    select(-ME, -MPE, -ACF1) %>% 
-    arrange(RMSSE)
-
-accuracy_ets_cv %>% 
-    filter(.type == "Test")
-
-fit_ets_cv %>%
-    filter(.id == 185) %>% 
-    forecast(h = 12) %>% 
-    autoplot(unemployment_train_ts)  # FINNE UT HVORDAN VI VELGER RIKTIG FORECAST DATO!!
-
-"Vi må finne ut korleis vi sjekka accuracy på test(mulig det er snittet av testene)
-fra denne skal vi då PLUKKE DEN BESTE MODELLEN MED MINST RMSSE!!"
 
 ################################################################################
 ########################### ARIMA PREPARATION ##################################
