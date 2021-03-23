@@ -3,11 +3,15 @@
 ###############################################################################
 
 #setwd("G:/Dokumenter/Google drive folder/NHH/Master/BAN430/Repository/Script")
-setwd("/Users/olaiviken/Documents/BAN430/BAN430/Data")
+#setwd("/Users/olaiviken/Documents/BAN430/BAN430/Data")
 
 # Choose the first if you use Mac OS and second if Windows
-Sys.setenv(X13_PATH = "../x13binary/bin")
+#Sys.setenv(X13_PATH = "../x13binary/bin")
 #Sys.setenv(X13_PATH = "../windows_x13/bin")
+
+
+# For installing the seasonal package without manual binary file
+install.packages("seasonal", type = "source") 
 
 
 ################################################################################
@@ -17,9 +21,11 @@ library(fpp3)
 library(readxl)
 library(lubridate)
 library(magrittr)
+library(forecast)
 library(feasts)
 library(seasonal)
 library(x13binary)
+library(kableExtra)
 
 checkX13()
 
@@ -44,7 +50,7 @@ df <- read_xls("../Data/US/Forecasting_economic_data.xls", sheet = 2)  %>%
 
 
 #################################################################################
-########################### TRAINING AND TEST ###################################
+########################### Time series data sets ###############################
 #################################################################################
 unemployment <- df  %>% 
     mutate(date = yearmonth(date))  %>% 
@@ -69,11 +75,27 @@ unemployment_test_ts <- unemployment %>%
 ###################################################################################
 ############################ DESCRIPTIV STATISTICS ################################
 ###################################################################################
+
+df %>%
+    mutate(date = yearmonth(date))  %>% 
+    filter(year(date) >= 2000)   %>% 
+    select(date, unemployed, seasonal_unemployed)   %>% 
+    ggplot() +
+        geom_line(aes(x = date, y = unemployed, col = "Unadjusted seasonal")) +
+        geom_line(aes(x = date, y = seasonal_unemployed, col = "Adjusted seasonal")) +
+        labs(title = "Unemployment in the USA",
+             subtitle = "[2000-2020]",
+             y = "Unemployment level",
+             x = "Months") +
+        guides(col = guide_legend(title = "Series:")) +
+        theme_bw() +
+        theme(legend.position = "bottom")
+
 unemployment %>% 
     ggplot() +
     geom_line(aes(x = date, y = unemployed, col = "Unadjusted seasonal")) +
     geom_line(aes(x = date, y = seasonal_unemployed, col = "Adjusted seasonal")) +
-    labs(title = "Unemployment in USA",
+    labs(title = "Unemployment in the USA",
          subtitle = "[2000-2019]",
          y = "Unemployment level",
          x = "Months") +
@@ -152,6 +174,11 @@ x11_seas <- seas(ts(unemployment_train %>% select(unemployed),
                     frequency = 12), 
                  x11 = "")
 
+
+x12_seas <- x12(ts(unemployment_train %>% select(unemployed), 
+                    start = c("2000"), 
+                    frequency = 12))
+
 # x11 season
 x13_seas <- seas(ts(unemployment_train %>% select(unemployed), 
                     start = c("2000"), 
@@ -201,9 +228,9 @@ ggplot() +
 
 # Compare RMSE to find closest fit to original seasonal adjusted unemployment data of US
 bind_cols(
-    "Accuracy method" = "RMSE",
+    "Accuracy method" = c("RMSE", "MAPE"),
     #"x11 feasts" = sqrt(mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp_feasts$season_adjust)^2)),
-    x11 = sqrt(mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp$seasonaladj)^2)),
+    x11 = c((ts(x11_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:2]),
     x13 = sqrt(mean((unemployment_train_ts$seasonal_unemployed - x13_dcmp$seasonaladj)^2)),
     stl = sqrt(mean((unemployment_train_ts$seasonal_unemployed - stl_dcmp$season_adjust)^2))
 ) %>% 
@@ -289,7 +316,7 @@ x11_models <- x11_dcmp %>%
           Drift = RW(values ~ drift()),
           Naive = NAIVE(values),
           SNaive = SNAIVE(values ~ lag("year")),
-          ETS = ETS(values)) # HUKS Ã… SJEKKE ETS!!!!!!!!!!!!!!!!!!!!!!!!!
+          ETS = ETS(values)) # HUKS Ã SJEKKE ETS!!!!!!!!!!!!!!!!!!!!!!!!!
 
 # x11 forecasting each of the decomposition part
 fc_x11 <- x11_models %>% 
@@ -310,7 +337,7 @@ x11_models  %>%
     guides(colour = guide_legend(title = "Legend")) +
     theme_bw()  +
     theme(legend.position = "bottom")
-# HUSK Ã… FIKSE LEGENDS
+# HUSK Ã FIKSE LEGENDS
 
 
 # Forming forcaste of the test
@@ -443,7 +470,7 @@ fra denne skal vi dÃ¥ PLUKKE DEN BESTE MODELLEN MED MINST RMSSE!!"
 ########################### ARIMA PREPARATION ##################################
 ################################################################################
 # Plots of differenced unemployed, autocorrelation and partial autocorrelation
-unemployment_train_ts %>% 
+
 
 
 ggtsdisplay(unemployment_train_ts_stationarity$unemployed, 
