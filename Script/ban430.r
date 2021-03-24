@@ -217,11 +217,7 @@ ggplot() +
 # Compare RMSE to find closest fit to original seasonal adjusted unemployment data of US
 
 
-<<<<<<< HEAD
- t(bind_rows(
-=======
 t(bind_rows(
->>>>>>> ebe5af65369c5115e34c39093eb3cfd55d09f77c
     "Model" = c("ME", "RMSE", "MAE",  "MPE", "MAPE" ),
     X11 = c((ts(x11_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]),
     X13 = c((ts(x13_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]),
@@ -668,13 +664,13 @@ arima_manual_fits  %>% accuracy(unemployment_test_ts)
 
 #************************USING UNEMPLOYED**************************************#
 # Finding the global optimal ARIMA-model by minimizing AICc
-fit_arima_optimal <- unemployment_train_ts %>% 
-    select(date, unemployed) %>% 
-    model(ARIMA_optimal = ARIMA(unemployed, 
-                                stepwise = FALSE,
-                                approximation = FALSE))
-
-?CV
+#fit_arima_optimal <- unemployment_train_ts %>% 
+ #   select(date, unemployed) %>% 
+  #  model(ARIMA_optimal = ARIMA(unemployed, 
+  #                              stepwise = FALSE,
+   #                             approximation = FALSE))
+#save(fit_arima_optimal, file = "../Data/arima_optimal.Rdata")
+load("../Data/arima_optimal.Rdata")
 ### Store in Rdata file
 fit_arima_optimal # Non-seasonal part (p,d,q) = (3,0,1) and Seasonal-part (P,D,Q)m = (0,1,1)12
 
@@ -856,36 +852,25 @@ fc_multivariate_var  %>%
 
 
 
-
-
-
+############################# TABLE comparison ##############################
 
 multivariate_var_table_data <- data.frame(Model = "Multivariate VAR model", 
                                           Type = "Test", 
                                           RMSE = RMSE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed),
                                           MAE =  MAE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed),
                                           MAPE = MAPE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed),
-                                          MASE = MASE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed, .period = 1)
+                                          MASE = MASE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed, .period = 1),
+                                          RMSSE = RMSSE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed, .period = 1))
 
-
-### TABLE comparison #####
-
-multivariate_table_data <- 
-    fc_multivariate_arima  %>% select(.model, date, .mean)  %>% 
+fc_multivariate_arima  %>% select(.model, date, .mean)  %>% 
     accuracy(unemployment_test_ts) %>% 
     rename("Model" = .model,
            "Type" = .type)  %>% 
     mutate(Model = "Multivariate ARIMA")  %>% 
-    select(Model:MAE, MAPE, MASE, RMSSE, -ME)
-bind_rows(multivariate_var_table_data)
-
-
-#Call kbl
-multivariate_table_data %>% 
+    select(Model:MAE, MAPE, MASE, RMSSE, -ME) %>%
+    bind_rows(multivariate_var_table_data) %>% 
     kbl(caption = "Multivariate ARIMA and Var models", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
-
-
 
 
 ########################################################################
