@@ -215,13 +215,14 @@ ggplot() +
     scale_colour_manual(values=c("black","green", "red", "orange"))
 
 # Compare RMSE to find closest fit to original seasonal adjusted unemployment data of US
-bind_cols(
+bind_rows(
     "Accuracy method" = c("ME",  "RMSE",  "MAE", "MPE",   "MAPE" ),
     #"x11 feasts" = sqrt(mean((unemployment_train_ts$seasonal_unemployed - x11_dcmp_feasts$season_adjust)^2)),
     X11 = c((ts(x11_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]),
     X13 = c((ts(x13_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]),
-    STL = c((ts(stl_dcmp$season_adjust) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5])
-) %>% 
+    STL = c((ts(stl_dcmp$season_adjust) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5])) %>%
+    t() %>% 
+    mutate(Model = rownames()) %>% 
     kbl(caption = "Evaluation metrics of decomposition methods", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
