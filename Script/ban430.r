@@ -822,7 +822,10 @@ fc_multivariate_var  %>%
 multivariate_var_table_data <- data.frame(Model = "Multivariate VAR model", 
                                           Type = "Test", 
                                           RMSE = RMSE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed),
-                                          MAE =  MAE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed) )
+                                          MAE =  MAE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed),
+                                          MAPE = MAPE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed),
+                                          MASE = MASE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed, .period = 1)
+                                        )
 
 ### TABLE comparison #####
 
