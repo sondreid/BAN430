@@ -893,8 +893,9 @@ unemployment_dynamic_data <- unemployment_train_ts %>%
     select(-seasonal_unemployed)
 
 fit_tslm <- unemployment_dynamic_data  %>% 
-    model(TSLM(unemployed ~ cpi + export))
+    model(ARIMA(unemployed ~ cpi + export + pdq(0,0,0)))
 
 fc_tslm <- fit_tslm  %>% 
-    augment()  %>% 
     forecast(h = 24)
+
+
