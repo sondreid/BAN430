@@ -24,10 +24,10 @@ library(magrittr)
 library(forecast)
 library(feasts)
 library(seasonal)
-library(x13binary)
+#library(x13binary)
 library(kableExtra)
 
-checkX13()
+#checkX13()
 
 
 ###############################################################################
@@ -175,10 +175,6 @@ x11_seas <- seas(ts(unemployment_train %>% select(unemployed),
                  x11 = "")
 
 
-x12_seas <- x12(ts(unemployment_train %>% select(unemployed), 
-                    start = c("2000"), 
-                    frequency = 12))
-
 # x11 season
 x13_seas <- seas(ts(unemployment_train %>% select(unemployed), 
                     start = c("2000"), 
@@ -303,7 +299,7 @@ x11_models <- x11_dcmp %>%
           Drift = RW(values ~ drift()),
           Naive = NAIVE(values),
           SNaive = SNAIVE(values ~ lag("year")),
-          ETS = ETS(values)) # HUKS Ã SJEKKE ETS!!!!!!!!!!!!!!!!!!!!!!!!!
+          ETS = ETS(values)) # HUKS ? SJEKKE ETS!!!!!!!!!!!!!!!!!!!!!!!!!
 
 # x11 forecasting each of the decomposition part
 fc_x11 <- x11_models %>% 
@@ -324,7 +320,7 @@ x11_models  %>%
     guides(colour = guide_legend(title = "Legend")) +
     theme_bw()  +
     theme(legend.position = "bottom")
-# HUSK Ã FIKSE LEGENDS
+# HUSK ? FIKSE LEGENDS
 
 
 # Forming forcaste of the test
@@ -712,7 +708,6 @@ be interpreted), we can still forecast"
 # Comparing ETS vs ARIMA -------------------------------------------------------
 accuracy_models <- bind_rows(
     accuracy_ets,
-    accuracy_arima
-) %>% 
+    accuracy_arima) %>% 
     arrange(RMSSE) # Root mean square standardized effect
 accuracy_models
