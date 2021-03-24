@@ -155,17 +155,6 @@ unemployment_train_ts  %>%
          y = "Unemployment level") +
     theme_bw()
 
-# Unemployment level in US by traning set
-unemployment_train_ts   %>%  
-    ggplot() +
-    geom_line(aes(x = date, y = unemployed, col = "Training data")) +
-    labs(title = "Unemployment",
-         subtitle = "Train [2000-2017]",
-         y = "Unemployment level",
-         x = "Month") +
-    guides(col = FALSE) 
-
-
 ###############################################################################################
 ##########################  Decomposition by various methods ##################################
 ###############################################################################################
@@ -222,7 +211,8 @@ ggplot() +
          x     = "Month") +
     guides(colour = guide_legend("Decomposition method:")) +
     theme_bw() +
-    theme(legend.position = "bottom")
+    theme(legend.position = "bottom") +
+    scale_colour_manual(values=c("black","green", "red", "orange"))
 
 # Compare RMSE to find closest fit to original seasonal adjusted unemployment data of US
 bind_cols(
@@ -300,8 +290,7 @@ x11_models <- x11_dcmp %>%
     model(Mean = MEAN(values),
           Drift = RW(values ~ drift()),
           Naive = NAIVE(values),
-          SNaive = SNAIVE(values ~ lag("year")),
-          ETS = ETS(values)) # HUKS ? SJEKKE ETS!!!!!!!!!!!!!!!!!!!!!!!!!
+          SNaive = SNAIVE(values ~ lag("year"))) # HUKS ? SJEKKE ETS!!!!!!!!!!!!!!!!!!!!!!!!!
 
 # x11 forecasting each of the decomposition part
 fc_x11 <- x11_models %>% 
@@ -310,16 +299,17 @@ fc_x11 <- x11_models %>%
 # Forecasting each of the individual decomposed series 
 x11_models  %>% 
     filter(components != "seasonaladj") %>% 
-    forecast(h = 24)  %>% 
-    autoplot(level = NULL) +
-    autolayer(x11_dcmp_test %>% filter(year(date) >= 2007 & year(date) <= 2017 )) +
+    forecast(h = 24)  %>%
+    ggplot() +
+    geom_line(aes(x = date, y = .mean, col = .model)) +
+    geom_line(aes(x = date, y = values), data = x11_dcmp_test %>% filter(year(date) >= 2000 & year(date) <= 2019 )) +
     facet_grid(vars(components),
                scales = "free_y") +
-    labs(title = "Forecast of X11 decomposition",
+    labs(title = "Forecast with X11 decomposition",
          subtitle = "Unemployed = Trend + Seasonal + Irregular",
          y = "Unemployment level",
          x = "Month") +
-    guides(colour = guide_legend(title = "Legend")) +
+    guides(colour = guide_legend(title = "Model:")) +
     theme_bw()  +
     theme(legend.position = "bottom")
 # HUSK ? FIKSE LEGENDS
@@ -331,9 +321,9 @@ fc_x11 %>%
     group_by(.model) %>% 
     summarise("Unemployment level" = sum(.mean)) %>% 
     autoplot() +
-    autolayer(unemployment_test_ts %>% filter(year(date) >= 2015)) +
+    autolayer(unemployment_test_ts %>% filter(year(date) >= 2000)) +
     guides(colour = guide_legend(title = "Model:")) +
-    labs(title = "Forcasting with x11 decomposition",
+    labs(title = "Forcasting with X11 decomposition",
          subtitle = "Unemployed = Trend + Season + Irregular",
          x = "Month") +
     theme_bw() +
@@ -351,6 +341,11 @@ fit_ets <- unemployment_train_ts %>%
     model(ETS_optimal = ETS(unemployed, ic = "aicc"),
           "ETS(A,A,A)"  = ETS(unemployed ~ error("A") + trend("A") + season("N"),  ic = "aicc")
           ) 
+
+fit_ets_optimal <- unemployment_train_ts %>%
+    select(date, unemployed) %>% 
+    model(ETS_optimal = ETS(unemployed)
+    ) 
 
 fit_ets # Error: Additive, Trend: Additive damped, Seasonal: Additive
 
@@ -373,9 +368,7 @@ fit_ets %>%
     labs(title = "ETS(A, AD, A)",
          y = "Component unemployment level",
          x = "Month") +
-    theme_bw() +
-    guides(colour = "none")
-    
+    theme_bw() 
 
     
 ### Forecast ETS with levels
@@ -412,6 +405,28 @@ fit_ets %>%
     guides(colour = guide_legend(title = "Legend")) +
     theme(legend.position = "bottom")
 
+
+fit_ets_optimal %>% 
+    forecast(h = 24) %>% 
+    autoplot(unemployment_test_ts %>% filter(year(date) >= 2000), 
+             level = 95) +
+    labs(title = "Forecast of Unemployment level with",
+         subtitle = fit_ets_optimal$ETS_optimal,
+         y = "Unemployment level", 
+         x = "Month") +
+    theme_bw() +
+    theme(legend.position = "bottom") +
+    guides(level = guide_legend(title = "Prediction interval %: "))
+
+fit_ets_optimal %>% 
+    components() %>% 
+    autoplot() +
+    labs(x = "Month",
+         y = "Unemployment level") +
+    theme_bw()
+
+
+
 models_ets_comparisons <-  unemployment_train_ts %>%
     model(snaive = SNAIVE(unemployed),
           naiv   = NAIVE(unemployed)) %>% forecast(h = 24) %>%
@@ -442,6 +457,17 @@ ggtsdisplay(residuals,
             lag.max = 24, 
             theme = theme_bw(),
             main = "Residuals of ETS(A,Ad,A) model")
+
+fit_ets_optimal %>% 
+    components()
+
+
+Residuals <- augment(fit_ets_optimal)$.resid
+ggtsdisplay(Residuals, 
+            plot.type = "histogram", 
+            lag.max = 24, 
+            theme = theme_bw(),
+            main = paste("Residuals of ", fit_ets_optimal$ETS_optimal, "model"))
 
 fit_ets %>% 
     augment() %>% 
@@ -593,9 +619,7 @@ arima_manual_fits <- unemployment_train_ts %>%
     model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)),
           ARIMA111011 = ARIMA(unemployed ~ pdq(1,1,1) + PDQ(0,1,1)),
           ARIMA313011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)),
-          ARIMA510111 = ARIMA(unemployed ~ pdq(5,1,0) + PDQ(1,1,0)),
-          SNAIVE       = SNAIVE(unemployed),
-          ETS          = ETS(unemployed)
+          ARIMA510111 = ARIMA(unemployed ~ pdq(5,1,0) + PDQ(1,1,0))
     ) %>% 
     bind_cols(ARIMA_optimal)
 
@@ -646,7 +670,7 @@ fit_arima_optimal <- unemployment_train_ts %>%
                                 stepwise = FALSE,
                                 approximation = FALSE))
 
-
+?CV
 ### Store in Rdata file
 fit_arima_optimal # Non-seasonal part (p,d,q) = (3,0,1) and Seasonal-part (P,D,Q)m = (0,1,1)12
 
@@ -660,18 +684,31 @@ fit_arima_optimal %>%
 fit_arima_optimal %>% 
     gg_tsresiduals() # Does not seems to be sign of correlation in resduals, and the histogram shows a normally distributed, this means that the prediction interval will be ok. 
 
+Residuals <- augment(fit_arima_optimal)$.resid
+ggtsdisplay(Residuals, 
+            plot.type = "histogram", 
+            lag.max = 24, 
+            theme = theme_bw(),
+            main = paste("Residuals of ", fit_arima_optimal$ARIMA_optimal, "model"))
+
+
 fit_arima_optimal %>% 
     augment() %>% 
     features(.innov, ljung_box, lag = 24, dof = 4) # KVIFOR ER DET FORSKJELLIG SVAR ETTER ENDRING AV LAG OG DOF?????
 
+
+
 fit_arima_optimal %>% 
-    forecast(h = 12) %>% 
-    autoplot(unemployment_test_ts %>% filter(year(date) >= 2017), 
+    forecast(h = 24) %>% 
+    autoplot(unemployment_test_ts %>% filter(year(date) >= 2000), 
              level = 95) +
-    labs(title = "Forecast of unemployment with ARIMA",
+    labs(title = "Forecast of Unemployment level with",
          subtitle = fit_arima_optimal$ARIMA_optimal,
          y = "Unemployment level", 
-         x = "Month")
+         x = "Month") +
+    theme_bw() +
+    theme(legend.position = "bottom") +
+    guides(level = guide_legend(title = "Prediction interval %: "))
 
 
 
