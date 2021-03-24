@@ -21,6 +21,7 @@ library(fpp3)
 library(readxl)
 library(lubridate)
 library(magrittr)
+library(tidyverse)
 library(forecast)
 library(feasts)
 library(seasonal)
@@ -719,23 +720,24 @@ accuracy_models
 ########## LOAD NEW VARIABLES #######################
 
 ## CPI data
-cpi_data <- read.csv("../Data/US/cpi_data.csv") %>% 
+
+cpi_data <- read_csv("../Data/US/cpi_data.csv") %>% 
     rename("date" = TIME, "cpi" = Value)  %>% 
     mutate(date = yearmonth(as.Date(paste(as.character(date), "-01", sep =""))))  %>% 
-    filter(year(date) >= 2000, ï..LOCATION == "USA")   %>% 
+    filter(year(date) >= 2000, LOCATION == "USA")   %>% 
     select(date, cpi)  %>% 
     as_tsibble(index = date) 
+    
 cpi_train <- cpi_data  %>% filter(year(date) <= 2017)
 
-export_ts <- read.csv("../Data/US/export_data.csv")  %>% 
+export_ts <- read_csv("../Data/US/export_data.csv")  %>% 
     rename("date" = TIME, "export" = Value)  %>% 
     mutate(date = yearmonth(as.Date(paste(as.character(date), "-01", sep =""))))  %>% 
-    filter(LOCATION == "USA", year(date) >= 2000 & year(date) <= 2019) %>% 
-    relocate(date, export)  %>% 
-    select(-(LOCATION:Flag.Codes)) %>% 
+    filter(LOCATION == "USA", year(date) >= 2000 & year(date) <= 2019) %>%
+    select(date, export)  %>% 
     as_tsibble(index = date) 
 
-export_train_ts <- export_ts  %>% 
+export_train <- export_ts  %>% 
     filter(year(date) <= 2017)
 
 
@@ -743,3 +745,41 @@ export_train_ts <- export_ts  %>%
 #####################################################################
 #################### Multivariate model #############################
 #####################################################################
+
+multivariate_data <- unemployment_train_ts %>% 
+    left_join(cpi_train, by = "date")  %>% 
+    left_join(export_train, by = "date") 
+
+fit_multivariate <- multivariate_data %>% 
+     model(ARIMA(unemployed ~ cpi + export))
+
+report(fit_multivariate)
+
+fc_multivariate <- fit_multivariate  %>% 
+    augment()  
+
+fc_multivariate <- new_data(fc_multivariate, 24)  %>% 
+    mutate(cpi = mean(multivariate_data$cpi),
+           export = mean(multivariate_data$export))  %>% 
+    select(-.model)  
+    
+fc_multivariate <- forecast(fit_multivariate, new_data = fc_multivariate)  
+
+
+fc_multivariate %>% 
+        ggplot() +
+        geom_line(aes(x = date, y  = .mean, color = "Multivariate")) +
+        geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
+        theme_bw() +
+        scale_colour_manual(values=c("#56B4E9", "black")) +
+        theme(legend.position = "bottom") +
+        labs(title = "Multivariate forecaste",
+             y = "Unemployment level",
+             x = "Month") +
+        guides(colour = guide_legend(title = "Series"))
+                    
+
+
+
+
+
