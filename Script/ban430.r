@@ -301,11 +301,7 @@ x11_models <- x11_dcmp %>%
           Drift = RW(values ~ drift()),
           Naive = NAIVE(values),
           SNaive = SNAIVE(values ~ lag("year")),
-<<<<<<< HEAD
           ETS = ETS(values)) # HUKS ? SJEKKE ETS!!!!!!!!!!!!!!!!!!!!!!!!!
-=======
-          ETS = ETS(values)) # HUKS � SJEKKE ETS!!!!!!!!!!!!!!!!!!!!!!!!!
->>>>>>> a2df9b2fbce624e46601cd66de84af2b2977abc0
 
 # x11 forecasting each of the decomposition part
 fc_x11 <- x11_models %>% 
@@ -326,11 +322,7 @@ x11_models  %>%
     guides(colour = guide_legend(title = "Legend")) +
     theme_bw()  +
     theme(legend.position = "bottom")
-<<<<<<< HEAD
 # HUSK ? FIKSE LEGENDS
-=======
-# HUSK � FIKSE LEGENDS
->>>>>>> a2df9b2fbce624e46601cd66de84af2b2977abc0
 
 
 # Forming forcaste of the test
