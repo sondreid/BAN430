@@ -33,7 +33,8 @@ library(kableExtra)
 ###############################################################################
 ############################ DATA RETRIEVAL ###################################
 ###############################################################################
-df <- read_xls("../Data/US/unemployment_data.xls", sheet = 2)  %>% 
+
+unemp_df <- read_xls("../Data/US/unemployment_data.xls", sheet = 2)  %>% 
     `colnames<-`( c("date", 
                     "seasonal_unemp_men", 
                     "seasonal_unemp_women", 
@@ -52,7 +53,7 @@ df <- read_xls("../Data/US/unemployment_data.xls", sheet = 2)  %>%
 #################################################################################
 ########################### Time series data sets ###############################
 #################################################################################
-unemployment <- df  %>% 
+unemployment <- unemp_df  %>% 
     mutate(date = yearmonth(date))  %>% 
     filter(year(date) >= 2000 & year(date) <= 2019)   %>% 
     select(date, unemployed, seasonal_unemployed)   
@@ -76,7 +77,7 @@ unemployment_test_ts <- unemployment %>%
 ############################ DESCRIPTIV STATISTICS ################################
 ###################################################################################
 
-df %>%
+unemp_df %>%
     mutate(date = yearmonth(date))  %>% 
     filter(year(date) >= 2000)   %>% 
     select(date, unemployed, seasonal_unemployed)   %>% 
@@ -712,3 +713,33 @@ accuracy_models <- bind_rows(
 ) %>% 
     arrange(RMSSE) # Root mean square standardized effect
 accuracy_models
+
+
+
+########## LOAD NEW VARIABLES #######################
+
+## CPI data
+cpi_data <- read.csv("../Data/US/cpi_data.csv") %>% 
+    rename("date" = TIME, "cpi" = Value)  %>% 
+    mutate(date = yearmonth(as.Date(paste(as.character(date), "-01", sep =""))))  %>% 
+    filter(year(date) >= 2000, ï..LOCATION == "USA")   %>% 
+    select(date, cpi)  %>% 
+    as_tsibble(index = date) 
+cpi_train <- cpi_data  %>% filter(year(date) <= 2017)
+
+export_ts <- read.csv("../Data/US/export_data.csv")  %>% 
+    rename("date" = TIME, "export" = Value)  %>% 
+    mutate(date = yearmonth(as.Date(paste(as.character(date), "-01", sep =""))))  %>% 
+    filter(LOCATION == "USA", year(date) >= 2000 & year(date) <= 2019) %>% 
+    relocate(date, export)  %>% 
+    select(-(LOCATION:Flag.Codes)) %>% 
+    as_tsibble(index = date) 
+
+export_train_ts <- export_ts  %>% 
+    filter(year(date) <= 2017)
+
+
+
+#####################################################################
+#################### Multivariate model #############################
+#####################################################################
