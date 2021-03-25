@@ -55,7 +55,8 @@ multivariate_data  %>%
 multivariate_data_stationary <- multivariate_data  %>% 
     mutate(diff_diff_seasonal_unemployed = difference(difference(unemployed, lag = 12)),
            diff_export                   = difference(export),
-           diff_cpi                      = difference(cpi))
+           diff_cpi                      = difference(cpi))  %>% 
+           select(date,diff_diff_seasonal_unemployed, diff_export, diff_cpi)
 
 
 ################################################################################
@@ -63,14 +64,14 @@ multivariate_data_stationary <- multivariate_data  %>%
 ################################################################################
 
 # Bic optimized model
-fit_multivariate_var <- multivariate_data %>% 
-    model(VAR = VAR(vars(unemployed,cpi,export), ic = "bic"))
+fit_multivariate_var <- multivariate_data_stationary %>% 
+    model(VAR = fable::VAR(vars(diff_diff_seasonal_unemployed, diff_cpi, diff_export), ic = "bic"))
 
 
 library(vars)
-test <- VARselect(multivariate_data[,2:5], lag.max =24, type="const")
+test <- VARselect(multivariate_data_stationary[,2:5], lag.max =24, type="const")
 
-test <- VAR(multivariate_data %>% select(unemployed, cpi, export), p=1, type="const")
+test <- VAR(multivariate_data_stationary, p=1, type="const")
 
 
 fc_multivariate_var <- fit_multivariate_var  %>% 
@@ -79,7 +80,7 @@ fc_multivariate_var <- fit_multivariate_var  %>%
 
 fc_multivariate_var  %>% 
     ggplot() +
-    geom_line(aes(x = date, y  = .mean_unemployed, color = "Multivariate forecasts")) +
+    geom_line(aes(x = date, y  = .mean_diff_diff_seasonal_unemployed, color = "Multivariate forecasts")) +
     geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
     geom_line(aes(x = date, y = .fitted , color = "Fitted"), data = fit_multivariate_var %>% augment() %>% filter(.response == "unemployed")) +
     theme_bw() +
