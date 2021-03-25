@@ -26,18 +26,18 @@ ggtsdisplay(multivariate_data$cpi,
 
 # Export: Autocorrelation plots
 ggtsdisplay(multivariate_data$export, 
-    plot.type = "partial", 
-    lag.max = 24, 
-    theme = theme_bw(),
-    main = "Exports")
+            plot.type = "partial", 
+            lag.max = 24, 
+            theme = theme_bw(),
+            main = "Exports")
 
 # CPI: KPSS test. Outcome: 1.26% p-value, needs differencing
 multivariate_data  %>% 
-    features(cpi, unitroot_kpss)
+  features(cpi, unitroot_kpss)
 
 # CPI: KPSS test. Outcome: 10% p-value, no need for further differencing
 multivariate_data  %>% 
-    features(difference(cpi), unitroot_kpss)
+  features(difference(cpi), unitroot_kpss)
 
 # CPI: Autocorrelation plots after difference
 ggtsdisplay(difference(multivariate_data$cpi), 
@@ -48,11 +48,11 @@ ggtsdisplay(difference(multivariate_data$cpi),
 
 # Export: KPSS test. Outcome: 1% p-value, needs differencing
 multivariate_data  %>% 
-    features(export, unitroot_kpss) 
+  features(export, unitroot_kpss) 
 
 # Export: KPSS test. Outcome: 10% p-value, no need for further differencing
 multivariate_data  %>% 
-    features(difference(export), unitroot_kpss)
+  features(difference(export), unitroot_kpss)
 
 # Export: Autocorrelation plots after difference
 ggtsdisplay(difference(multivariate_data$export), 
@@ -84,32 +84,32 @@ multivariate_data_stationary <- multivariate_data  %>%
 
 # VAR: optimal model by AICc and BIC
 fit_multivariate_var <- multivariate_data_stationary %>% 
-    model(VAR_aicc = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export), ic = "aicc"),
-          VAR_bic = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export), ic = "bic"))
+  model(VAR_aicc = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export), ic = "aicc"),
+        VAR_bic = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export), ic = "bic"))
 
 # VAR: forecasts
 fc_multivariate_var <- fit_multivariate_var  %>% 
-    forecast(h = 24)  %>% 
-    as_tsibble(index = date)
+  forecast(h = 24)  %>% 
+  as_tsibble(index = date)
 
 # VAR: forecast adjusted with level
 forecast_level <- fc_multivariate_var %>% 
-                  dplyr::select(".mean_diff_diff_seasonal_unemployed")  %>% 
-                  rename(diff_unemployed = ".mean_diff_diff_seasonal_unemployed")  %>% 
-                  group_by(.model)  %>% 
-                  mutate(diff_unemployed = cumsum(diff_unemployed) +  multivariate_data$unemployed %>% tail(1)) ## Add level
+  dplyr::select(".mean_diff_diff_seasonal_unemployed")  %>% 
+  rename(diff_unemployed = ".mean_diff_diff_seasonal_unemployed")  %>% 
+  group_by(.model)  %>% 
+  mutate(diff_unemployed = cumsum(diff_unemployed) +  multivariate_data$unemployed %>% tail(1)) ## Add level
 
 # AICc and BIC optimized forecast, VAR(5) and VAR(1)           
 forecast_level  %>% 
-    autoplot() +
-    autolayer(unemployment_test_ts) +
-    theme_bw() +
-    theme(legend.position = "bottom") +
-    labs(y = "Unemployment level",
-         x = "Month",
-         title = "Forecasting with VAR methods") +
-    guides(colour = guide_legend(title = "Method:")) +
-    scale_colour_manual(values=c("#56B4E9", "orange")) 
+  autoplot() +
+  autolayer(unemployment_test_ts) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  labs(y = "Unemployment level",
+       x = "Month",
+       title = "Forecasting with VAR methods") +
+  guides(colour = guide_legend(title = "Method:")) +
+  scale_colour_manual(values=c("#56B4E9", "orange")) 
 
 
 
@@ -128,8 +128,8 @@ var20 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 20, type="const"
 "Failed portmanteau test: Set of autocorrelation tests most likely ljung box test for several variables"
 serial_port_test <- (serial.test(var20, lags.pt=24, type="PT.asymptotic"))$serial
 data.frame("Chi-squared" = serial_port_test[1],
-            "df"         = serial_port_test[2],
-            "p.value"    = serial_port_test[3]) %>% kbl()
+           "df"         = serial_port_test[2],
+           "p.value"    = serial_port_test[3]) %>% kbl()
 
 
 forecast(object= var2, h = 24) %>%
@@ -172,7 +172,7 @@ library(bvartools)
 # Johansen test
 ### Identify cointegration between variables
 ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = c("eigen", "trace"),
-             K = 5, spec = "longrun") ## k = 5 AR terms
+               K = 5, spec = "longrun", season = 1) ## k = 5 AR terms
 
 summary(ca_jo)
 
@@ -227,36 +227,36 @@ load("../Data/dynamic_regression_export_cpi_fit.Rdata")
 
 # CPI: forecast
 fc_cpi <- fit_cpi  %>% 
-    forecast(h = 24)
+  forecast(h = 24)
 
 # Export: forecast
 fc_export <- fit_export  %>% 
-    forecast(h = 24)
+  forecast(h = 24)
 
 # CPI: traning accuracy, outcome: ARIMA(2,1,3)(0,0,1)[12]
 fit_cpi  %>% 
-    accuracy()  %>% 
-    arrange(MASE)  %>% 
-    dplyr::select(-ME, -ACF1)
+  accuracy()  %>% 
+  arrange(MASE)  %>% 
+  dplyr::select(-ME, -ACF1)
 
 # Export: training accuracy, outcome: ARIMA(2,1,2)(0,0,2)[12] w/ drift
 fit_cpi  %>% 
-    accuracy()  %>% 
-    arrange(MASE)   %>% 
-    dplyr::select(-ME, -ACF1)
+  accuracy()  %>% 
+  arrange(MASE)   %>% 
+  dplyr::select(-ME, -ACF1)
 
 # ARIMA optimized model by reducing AICc
 fit_multivariate_arima <- multivariate_data %>% 
-    model(ARIMA(unemployed ~ cpi + export, stepwise = FALSE, approximation = FALSE))
+  model(ARIMA(unemployed ~ cpi + export, stepwise = FALSE, approximation = FALSE))
 report(fit_multivariate_arima)
 
 # ARIMA forecasts of CPI and Export 
 fc_predictors_arima <- new_data(fit_multivariate_arima  %>% augment(), 24)  %>% 
-    left_join(fc_cpi  %>%  filter(.model == "arima"), by = "date")  %>% 
-    left_join(fc_export %>%  filter(.model == "arima"), by = "date")  %>% 
-    dplyr::select(-.model.x, -.model.y, -.model, -cpi, -export)  %>% 
-    rename(cpi = .mean.x,
-           export = .mean.y)  
+  left_join(fc_cpi  %>%  filter(.model == "arima"), by = "date")  %>% 
+  left_join(fc_export %>%  filter(.model == "arima"), by = "date")  %>% 
+  dplyr::select(-.model.x, -.model.y, -.model, -cpi, -export)  %>% 
+  rename(cpi = .mean.x,
+         export = .mean.y)  
 
 # Forecast of Unemployment level with forecasted predictors using ARIMA method
 fc_multivariate_arima <- forecast(fit_multivariate_arima, 
@@ -264,16 +264,70 @@ fc_multivariate_arima <- forecast(fit_multivariate_arima,
 
 # Plot: Forecast of Unemployment level with forecasted predictors using ARIMA method
 fc_multivariate_arima %>% 
-    ggplot() +
-    geom_line(aes(x = date, y  = .mean, color = "Multivariate")) +
-    geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
-    theme_bw() +
-    scale_colour_manual(values=c("#56B4E9", "black")) +
-    theme(legend.position = "bottom") +
-    labs(title = "Multivariate forecaste",
-         y = "Unemployment level",
-         x = "Month") +
-    guides(colour = guide_legend(title = "Series"))
+  ggplot() +
+  geom_line(aes(x = date, y  = .mean, color = "Multivariate")) +
+  geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
+  theme_bw() +
+  scale_colour_manual(values=c("#56B4E9", "black")) +
+  theme(legend.position = "bottom") +
+  labs(title = "Multivariate forecaste",
+       y = "Unemployment level",
+       x = "Month") +
+  guides(colour = guide_legend(title = "Series"))
+
+
+# NAIVE forecast of CPI and Export
+fc_predictors_naive <- new_data(fit_multivariate_arima  %>% augment(), 24)  %>% 
+  left_join(fc_cpi  %>%  filter(.model == "naive"), by = "date")  %>% 
+  left_join(fc_export %>%  filter(.model == "naive"), by = "date")  %>% 
+  dplyr::select(-.model.x, -.model.y, -.model, -cpi, -export)  %>% 
+  rename(cpi = .mean.x,
+         export = .mean.y) 
+
+# Forecast of Unemployment level with forecasted predictors using NAIVE method
+fc_multivariate_naive <- forecast(fit_multivariate_arima, 
+                                  new_data = fc_predictors_naive)  
+
+# Plot: Forecast of Unemployment level with forecasted predictors using NAIVE method
+fc_multivariate_naive %>% 
+  ggplot() +
+  geom_line(aes(x = date, y  = .mean, color = "Multivariate")) +
+  geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
+  theme_bw() +
+  scale_colour_manual(values=c("#56B4E9", "black")) +
+  theme(legend.position = "bottom") +
+  labs(title = "Multivariate forecaste",
+       y = "Unemployment level",
+       x = "Month") +
+  guides(colour = guide_legend(title = "Series"))
+
+# Forecast: accuracy
+bind_rows(
+  fc_multivariate_arima  %>% accuracy(unemployment_test_ts),
+  Predctors_NAIVE = fc_multivariate_naive  %>% accuracy(unemployment_test_ts))  %>% 
+  dplyr::select(-ME, -ACF1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # NAIVE forecast of CPI and Export
@@ -338,32 +392,32 @@ ggtsdisplay(Residual,
             main = "Residuals of multivariate model")
 
 fit_multivariate_arima_augment  %>% 
-    features(.innov, ljung_box, lag = 24, dof = 4)
+  features(.innov, ljung_box, lag = 24, dof = 4)
 
 
 ########################################################################
 #################### Forecast with CPI + EXPORT ########################
 ########################################################################
 unemployment_dynamic_data <- unemployment_train_ts %>% 
-    left_join(cpi_train, by = "date")  %>% 
-    left_join(export_train, by = "date")  %>% 
-    select(-seasonal_unemployed)
+  left_join(cpi_train, by = "date")  %>% 
+  left_join(export_train, by = "date")  %>% 
+  select(-seasonal_unemployed)
 
 fit_tslm <- unemployment_dynamic_data  %>% 
-    model(ARIMA(unemployed ~ cpi + export + pdq(0,0,0) + PDQ(0,0,0)))
+  model(ARIMA(unemployed ~ cpi + export + pdq(0,0,0) + PDQ(0,0,0)))
 
 train_tslm_data <- fit_tslm  %>% 
-    augment()
+  augment()
 
 new_tslm_data <- new_data(train_tslm_data, 24)  %>% 
-    mutate(cpi = mean(unemployment_dynamic_data$cpi),
-           export = mean(unemployment_dynamic_data$export))  %>% 
-    select(-.model)  
+  mutate(cpi = mean(unemployment_dynamic_data$cpi),
+         export = mean(unemployment_dynamic_data$export))  %>% 
+  select(-.model)  
 
 fc_tslm <- forecast(fit_tslm, new_data = new_tslm_data)
 
 fc_tslm %>% 
-    autoplot(unemployment_test_ts)
+  autoplot(unemployment_test_ts)
 
 
 ############################# TABLE comparison ##############################
@@ -377,14 +431,14 @@ multivariate_var_table_data <- data.frame(Model = "Multivariate VAR model",
                                           RMSSE = RMSSE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed, .period = 1))
 
 fc_multivariate_arima  %>% select(.model, date, .mean)  %>% 
-    accuracy(unemployment_test_ts) %>% 
-    rename("Model" = .model,
-           "Type" = .type)  %>% 
-    mutate(Model = "Multivariate ARIMA")  %>% 
-    select(Model:MAE, MAPE, MASE, RMSSE, -ME) %>%
-    bind_rows(multivariate_var_table_data) %>% 
-    kbl(caption = "Multivariate ARIMA and Var models", digits = 2) %>%
-    kable_classic(full_width = F, html_font = "Times new roman")
+  accuracy(unemployment_test_ts) %>% 
+  rename("Model" = .model,
+         "Type" = .type)  %>% 
+  mutate(Model = "Multivariate ARIMA")  %>% 
+  select(Model:MAE, MAPE, MASE, RMSSE, -ME) %>%
+  bind_rows(multivariate_var_table_data) %>% 
+  kbl(caption = "Multivariate ARIMA and Var models", digits = 2) %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
 
 
 

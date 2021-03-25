@@ -682,3 +682,176 @@ accuracy_models
 
 
 
+<<<<<<< HEAD
+########## LOAD NEW VARIABLES #######################
+
+## CPI data
+
+cpi_data <- read_csv("../Data/US/cpi_data.csv") %>% 
+    rename("date" = TIME, "cpi" = Value)  %>% 
+    mutate(date = yearmonth(as.Date(paste(as.character(date), "-01", sep =""))))  %>% 
+    filter(year(date) >= 2000, LOCATION == "USA")   %>% 
+    select(date, cpi)  %>% 
+    as_tsibble(index = date) 
+
+cpi_train <- cpi_data  %>% filter(year(date) <= 2017)
+
+export_ts <- read_csv("../Data/US/export_data.csv")  %>% 
+    rename("date" = TIME, "export" = Value)  %>% 
+    mutate(date = yearmonth(as.Date(paste(as.character(date), "-01", sep =""))))  %>% 
+    filter(LOCATION == "USA", year(date) >= 2000 & year(date) <= 2019) %>%
+    select(date, export)  %>% 
+    as_tsibble(index = date) 
+
+export_train <- export_ts  %>% 
+    filter(year(date) <= 2017)
+
+
+
+#####################################################################
+#################### Multivariate model: ARIMA #############################
+#####################################################################
+
+multivariate_data <- unemployment_train_ts %>% 
+    left_join(cpi_train, by = "date")  %>% 
+    left_join(export_train, by = "date") 
+
+
+fit_multivariate_arima <- multivariate_data %>% 
+    model(ARIMA(unemployed ~ cpi + export))
+
+report(fit_multivariate_arima)
+
+fit_multivariate_arima_augment <- fit_multivariate_arima  %>% 
+    augment()  
+
+fc_multivariate_arima <- new_data(fit_multivariate_arima_augment, 24)  %>% 
+    mutate(cpi = mean(multivariate_data$cpi),
+           export = mean(multivariate_data$export))  %>% 
+    select(-.model)  
+
+fc_multivariate_arima <- forecast(fit_multivariate_arima, new_data = fc_multivariate_arima)  
+
+
+fc_multivariate_arima %>% 
+    ggplot() +
+    geom_line(aes(x = date, y  = .mean, color = "Multivariate")) +
+    geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
+    theme_bw() +
+    scale_colour_manual(values=c("#56B4E9", "black")) +
+    theme(legend.position = "bottom") +
+    labs(title = "Multivariate forecaste",
+         y = "Unemployment level",
+         x = "Month") +
+    guides(colour = guide_legend(title = "Series"))
+
+Residual <- fit_multivariate_arima_augment$.innov
+
+ggtsdisplay(Residual, 
+            plot.type = "histogram", 
+            lag.max = 24, 
+            theme = theme_bw(),
+            main = "Residuals of multivariate model")
+
+fit_multivariate_arima_augment  %>% 
+    features(.innov, ljung_box, lag = 24, dof = 4)
+
+
+
+
+# Multivariate forecast with Vectorized auto regression
+fit_multivariate_var <- multivariate_data %>% 
+    model(VAR = VAR(vars(unemployed,cpi,export), ic = "aicc"))
+
+fc_multivariate_var <- fit_multivariate_var  %>% 
+    forecast(h = 24)  %>% 
+    as_tsibble(index = date)
+
+fc_multivariate_var  %>% 
+    ggplot() +
+    geom_line(aes(x = date, y  = .mean_unemployed, color = "Multivariate forecasts")) +
+    geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
+    geom_line(aes(x = date, y = .fitted , color = "Fitted"), data = fit_multivariate_var %>% augment() %>% filter(.response == "unemployed")) +
+    theme_bw() +
+    scale_colour_manual(values=c("#56B4E9", "black", "#56e99b")) +
+    theme(legend.position = "bottom") +
+    labs(title = "Multivariate forecaste",
+         y = "Unemployment level",
+         x = "Month") +
+    guides(colour = guide_legend(title = "Series"))
+
+
+
+
+
+
+
+multivariate_var_table_data <- data.frame(Model = "Multivariate VAR model", 
+                                          Type = "Test", 
+                                          RMSE = RMSE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed),
+                                          MAE =  MAE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed),
+                                          MAPE = MAPE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed),
+                                          MASE = MASE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed, .period = 1)
+)
+
+### TABLE comparison #####
+
+multivariate_table_data <- 
+    fc_multivariate_arima  %>% select(.model, date, .mean)  %>% 
+    accuracy(unemployment_test_ts) %>% 
+    rename("Model" = .model,
+           "Type" = .type)  %>% 
+    mutate(Model = "Multivariate ARIMA")  %>% 
+    select(Model:MAE, MAPE, MASE, RMSSE, -ME)
+bind_rows(multivariate_var_table_data)
+
+
+#Call kbl
+multivariate_table_data %>% 
+    kbl(caption = "Multivariate ARIMA and Var models", digits = 2) %>%
+    kable_classic(full_width = F, html_font = "Times new roman")
+
+
+
+
+########################################################################
+#################### FORECAST: CPI + EXPORT ############################
+########################################################################
+unemployment_dynamic_data <- unemployment_train_ts %>% 
+    left_join(cpi_train, by = "date")  %>% 
+    left_join(export_train, by = "date")  %>% 
+    select(-seasonal_unemployed)
+
+fit_tslm <- unemployment_dynamic_data  %>% 
+    model(ARIMA(unemployed ~ cpi + export))
+
+train_tslm_data <- fit_tslm  %>% 
+    augment()
+
+new_tslm_data <- new_data(train_tslm_data, 24)  %>% 
+    mutate(cpi = unemployment_dynamic_data$cpi %>% tail(1),
+           export = unemployment_dynamic_data$export %>% tail(1))  %>% 
+    select(-.model)  
+
+fc_tslm <- forecast(fit_tslm, new_data = new_tslm_data)
+
+fc_tslm %>% 
+    autoplot(unemployment_test_ts, level = 95)
+
+
+
+#########################################################################
+#################### FORECAST: DYNAMIC REGRESSION #######################
+#########################################################################
+
+
+
+
+
+
+
+
+
+
+=======
+>>>>>>> 99d35b357ce1f8f40b9e03e934e6061b304f8c5f
