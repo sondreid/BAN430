@@ -363,7 +363,9 @@ comb_mean_fc <- bind_cols(fc_arima_optimal, fc_ets_optimal, fc_dynamic_naive)  %
            mutate(mean_fc=mean(c(.mean...4, .mean...8, .mean...12 )))
 
 vec <- c(unemployment_test$unemployed- comb_mean_fc$mean_fc)
-MASE(.resid =  vec, .train = c(unemployment_train_ts$unemployed), .period = 12)
+MASE(.resid =  vec,  .train = c(unemployment_train_ts$unemployed), .period = 12)
+RMSE(vec)
+RMSSE(.resid =  vec,  .train = c(unemployment_train_ts$unemployed), .period = 12)
 MASE(.resid = unemployment_test$unemployed, .actual = comb_mean_fc$mean_fc, .period = 12)
 RMSSE(comb_mean_fc$mean_fc, unemployment_test_ts$unemployed, .period = 12)
 

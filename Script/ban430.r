@@ -359,8 +359,8 @@ models_ets_comparisons <-  unemployment_train_ts %>%
     bind_rows(fit_ets %>% 
                   forecast(h = 24)) %>% 
     accuracy(unemployment_test_ts) %>% 
-    mutate(.model = c("ETS(A,A,A)", "ETS(A,Ad,A)", "Naive", "SNaive")) %>% 
     arrange(MASE) %>% 
+    mutate(.model = c("ETS(A,Ad,A) ", "ETS(A,A,A)", "Naive", "SNaive")) %>% 
     rename("Model" = .model) %>% 
     dplyr::select(-".type", -ACF1)
 
