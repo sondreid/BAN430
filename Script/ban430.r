@@ -7,7 +7,7 @@ source("data.r")
 unemp_df %>%
     mutate(date = yearmonth(date))  %>% 
     filter(year(date) >= 2000)   %>% 
-    select(date, unemployed, seasonal_unemployed)   %>% 
+    dplyr::select(date, unemployed, seasonal_unemployed)   %>% 
     ggplot() +
     geom_line(aes(x = date, y = unemployed, col = "Unadjusted seasonal")) +
     geom_line(aes(x = date, y = seasonal_unemployed, col = "Adjusted seasonal")) +
@@ -86,14 +86,14 @@ unemployment_train_ts  %>%
 ###############################################################################################
 
 # x11 season
-x11_seas <- seas(ts(unemployment_train %>% select(unemployed), 
+x11_seas <- seas(ts(unemployment_train %>% dplyr::select(unemployed), 
                     start = c("2000"), 
                     frequency = 12), 
                  x11 = "")
 
 
 # x11 season
-x13_seas <- seas(ts(unemployment_train %>% select(unemployed), 
+x13_seas <- seas(ts(unemployment_train %>% dplyr::select(unemployed), 
                     start = c("2000"), 
                     frequency = 12))
 
@@ -105,17 +105,17 @@ x11_dcmp_feasts <- unemployment_train_ts  %>%
 
 # x11 decomposing with seas
 x11_dcmp <- data.frame(x11_seas) %>%
-    left_join(select(unemployment_train_ts, unemployed), 
+    left_join(dplyr::select(unemployment_train_ts, unemployed), 
               by = "date") %>% 
-    select(-adjustfac, -final)  %>% 
+    dplyr::select(-adjustfac, -final)  %>% 
     mutate(date = yearmonth(date)) %>% 
     as_tsibble(index = date)
 
 # x13 decomposing with seas
 x13_dcmp <- data.frame(x13_seas) %>% 
-    left_join(select(unemployment_train_ts, unemployed), 
+    left_join(dplyr::select(unemployment_train_ts, unemployed), 
               by = "date") %>% 
-    select(-adjustfac, -final)  %>% 
+    dplyr::select(-adjustfac, -final)  %>% 
     mutate(date = yearmonth(date))  %>%
     as_tsibble(index = date)
 
@@ -153,7 +153,7 @@ t(bind_rows(
 
 # x11 decomposed plot
 x11_dcmp %>% 
-    select(-seasonaladj) %>% 
+    dplyr::select(-seasonaladj) %>% 
     pivot_longer(cols = seasonal:unemployed,
                  names_to = "components",
                  values_to = "values") %>% 
@@ -169,7 +169,7 @@ x11_dcmp %>%
 
 # x13 decomposed plot
 x13_dcmp %>% 
-    select(-seasonaladj) %>% 
+    dplyr::select(-seasonaladj) %>% 
     pivot_longer(cols = seasonal:unemployed,
                  names_to = "components",
                  values_to = "values") %>% 
@@ -192,15 +192,15 @@ x13_dcmp %>%
 # Forecast indivial compnents of the X11 decomposition
 
 # Testset of the best decomposition method
-x11_seas_test <- seas(ts(unemployment %>% select(unemployed), 
+x11_seas_test <- seas(ts(unemployment %>% dplyr::select(unemployed), 
                          start = c("2000"), 
                          frequency = 12), 
                       x11 = "")
 
 # Decomposed in seasonal, trend and irregularities of testset
 x11_dcmp_test <- data.frame(x11_seas_test) %>%
-    left_join(select(unemployment_test_ts, unemployed), by = "date") %>% 
-    select(-adjustfac, -final, -seasonaladj)  %>% 
+    left_join(dplyr::select(unemployment_test_ts, unemployed), by = "date") %>% 
+    dplyr::select(-adjustfac, -final, -seasonaladj)  %>% 
     mutate(date = yearmonth(date)) %>% 
     as_tsibble(index = date)  %>% 
     pivot_longer(cols = seasonal:unemployed,
@@ -263,20 +263,20 @@ fc_x11 %>%
 
 # Fitting the trainingset with the best ETS model by minimizing AICc
 fit_ets <- unemployment_train_ts %>%
-    select(date, unemployed) %>% 
+    dplyr::select(date, unemployed) %>% 
     model(ETS_optimal = ETS(unemployed, ic = "aicc"),
           "ETS(A,A,A)"  = ETS(unemployed ~ error("A") + trend("A") + season("N"),  ic = "aicc")
     ) 
 
 fit_ets_optimal <- unemployment_train_ts %>%
-    select(date, unemployed) %>% 
+    dplyr::select(date, unemployed) %>% 
     model(ETS_optimal = ETS(unemployed)
     ) 
-
+fc_ets_optimal <-  fit_ets_optimal %>% forecast(h = 24)
 fit_ets # Error: Additive, Trend: Additive damped, Seasonal: Additive
 
 tidy(fit_ets) %>% 
-    select(-.model) %>% 
+    dplyr::select(-.model) %>% 
     pivot_wider(names_from = term, values_from = estimate) %>% 
     kbl(caption = "Coefficients of ETS(A,Ad,A)", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
@@ -362,7 +362,7 @@ models_ets_comparisons <-  unemployment_train_ts %>%
     mutate(.model = c("ETS(A,A,A)", "ETS(A,Ad,A)", "Naive", "SNaive")) %>% 
     arrange(MASE) %>% 
     rename("Model" = .model) %>% 
-    select(-".type", -ACF1)
+    dplyr::select(-".type", -ACF1)
 
 # Comparisons with simpler forecast methods
 models_ets_comparisons %>% 
@@ -405,7 +405,7 @@ accuracy_ets <- bind_rows(
     fit_ets %>% accuracy(),
     fit_ets %>% forecast(h = 12) %>% accuracy(unemployment_test_ts)
 ) %>% 
-    select(-ME, -MPE, -ACF1) %>% 
+    dplyr::select(-ME, -MPE, -ACF1) %>% 
     arrange(MASE)
 accuracy_ets %>% 
     kbl(caption = "Accuracy of ETS(A,Ad,A)", digits = 2) %>%
@@ -492,7 +492,7 @@ ggtsdisplay(unemployment_train_ts_stationarity$diff_diff_season_unemployed,
 
 # Plotting unemployed and diff-unemployed
 unemployment_train_ts_stationarity %>% 
-    select(-seasonal_unemployed) %>% 
+    dplyr::select(-seasonal_unemployed) %>% 
     pivot_longer(cols = unemployed:diff_season_unemployed,
                  names_to = "components",
                  values_to = "values") %>% 
@@ -502,7 +502,7 @@ unemployment_train_ts_stationarity %>%
 # Autocorrelation of unemployed and diff-unemployed
 
 unemployment_train_ts_stationarity %>% 
-    select(-seasonal_unemployed) %>% 
+    dplyr::select(-seasonal_unemployed) %>% 
     pivot_longer(cols = unemployed:diff_diff_season_unemployed,
                  names_to = "components",
                  values_to = "values") %>% 
@@ -511,7 +511,7 @@ unemployment_train_ts_stationarity %>%
     facet_grid(vars(components))
 
 unemployment_train_ts_stationarity %>% 
-    select(-seasonal_unemployed) %>% 
+    dplyr::select(-seasonal_unemployed) %>% 
     pivot_longer(cols = unemployed:diff_diff_season_unemployed,
                  names_to = "components",
                  values_to = "values") %>% 
@@ -546,7 +546,7 @@ unemployment_train_ts_stationarity %>%
 
 # Finding the global optimal ARIMA-model by minimizing AICc
 #fit_arima_optimal <- unemployment_train_ts %>% 
- #   select(date, unemployed) %>% 
+ #   dplyr::dplyr::select(date, unemployed) %>% 
   #  model(ARIMA_optimal = ARIMA(unemployed, 
   #                              stepwise = FALSE,
    #                             approximation = FALSE))
@@ -555,7 +555,7 @@ load("../Data/arima_optimal.Rdata")
 
 
 arima_manual_fits <- unemployment_train_ts %>% 
-    select(date, unemployed) %>% 
+    dplyr::dplyr::select(date, unemployed) %>% 
     model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)),
           ARIMA111011 = ARIMA(unemployed ~ pdq(1,1,1) + PDQ(0,1,1)),
           ARIMA313011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)),
@@ -663,7 +663,7 @@ accuracy_arima  <- bind_rows(
     arima_manual_fits  %>% accuracy(),
     fc_arima311011  %>%  accuracy(unemployment_test_ts)
 ) %>%
-    select(.model:RMSSE)  %>% 
+    dplyr::select(.model:RMSSE)  %>% 
     arrange(RMSSE)
 accuracy_arima
 
@@ -681,177 +681,4 @@ accuracy_models <- bind_rows(
 accuracy_models
 
 
-
-<<<<<<< HEAD
-########## LOAD NEW VARIABLES #######################
-
-## CPI data
-
-cpi_data <- read_csv("../Data/US/cpi_data.csv") %>% 
-    rename("date" = TIME, "cpi" = Value)  %>% 
-    mutate(date = yearmonth(as.Date(paste(as.character(date), "-01", sep =""))))  %>% 
-    filter(year(date) >= 2000, LOCATION == "USA")   %>% 
-    select(date, cpi)  %>% 
-    as_tsibble(index = date) 
-
-cpi_train <- cpi_data  %>% filter(year(date) <= 2017)
-
-export_ts <- read_csv("../Data/US/export_data.csv")  %>% 
-    rename("date" = TIME, "export" = Value)  %>% 
-    mutate(date = yearmonth(as.Date(paste(as.character(date), "-01", sep =""))))  %>% 
-    filter(LOCATION == "USA", year(date) >= 2000 & year(date) <= 2019) %>%
-    select(date, export)  %>% 
-    as_tsibble(index = date) 
-
-export_train <- export_ts  %>% 
-    filter(year(date) <= 2017)
-
-
-
-#####################################################################
-#################### Multivariate model: ARIMA #############################
-#####################################################################
-
-multivariate_data <- unemployment_train_ts %>% 
-    left_join(cpi_train, by = "date")  %>% 
-    left_join(export_train, by = "date") 
-
-
-fit_multivariate_arima <- multivariate_data %>% 
-    model(ARIMA(unemployed ~ cpi + export))
-
-report(fit_multivariate_arima)
-
-fit_multivariate_arima_augment <- fit_multivariate_arima  %>% 
-    augment()  
-
-fc_multivariate_arima <- new_data(fit_multivariate_arima_augment, 24)  %>% 
-    mutate(cpi = mean(multivariate_data$cpi),
-           export = mean(multivariate_data$export))  %>% 
-    select(-.model)  
-
-fc_multivariate_arima <- forecast(fit_multivariate_arima, new_data = fc_multivariate_arima)  
-
-
-fc_multivariate_arima %>% 
-    ggplot() +
-    geom_line(aes(x = date, y  = .mean, color = "Multivariate")) +
-    geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
-    theme_bw() +
-    scale_colour_manual(values=c("#56B4E9", "black")) +
-    theme(legend.position = "bottom") +
-    labs(title = "Multivariate forecaste",
-         y = "Unemployment level",
-         x = "Month") +
-    guides(colour = guide_legend(title = "Series"))
-
-Residual <- fit_multivariate_arima_augment$.innov
-
-ggtsdisplay(Residual, 
-            plot.type = "histogram", 
-            lag.max = 24, 
-            theme = theme_bw(),
-            main = "Residuals of multivariate model")
-
-fit_multivariate_arima_augment  %>% 
-    features(.innov, ljung_box, lag = 24, dof = 4)
-
-
-
-
-# Multivariate forecast with Vectorized auto regression
-fit_multivariate_var <- multivariate_data %>% 
-    model(VAR = VAR(vars(unemployed,cpi,export), ic = "aicc"))
-
-fc_multivariate_var <- fit_multivariate_var  %>% 
-    forecast(h = 24)  %>% 
-    as_tsibble(index = date)
-
-fc_multivariate_var  %>% 
-    ggplot() +
-    geom_line(aes(x = date, y  = .mean_unemployed, color = "Multivariate forecasts")) +
-    geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
-    geom_line(aes(x = date, y = .fitted , color = "Fitted"), data = fit_multivariate_var %>% augment() %>% filter(.response == "unemployed")) +
-    theme_bw() +
-    scale_colour_manual(values=c("#56B4E9", "black", "#56e99b")) +
-    theme(legend.position = "bottom") +
-    labs(title = "Multivariate forecaste",
-         y = "Unemployment level",
-         x = "Month") +
-    guides(colour = guide_legend(title = "Series"))
-
-
-
-
-
-
-
-multivariate_var_table_data <- data.frame(Model = "Multivariate VAR model", 
-                                          Type = "Test", 
-                                          RMSE = RMSE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed),
-                                          MAE =  MAE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed),
-                                          MAPE = MAPE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed),
-                                          MASE = MASE(unemployment_test$unemployed, fc_multivariate_var$.mean_unemployed, .period = 1)
-)
-
-### TABLE comparison #####
-
-multivariate_table_data <- 
-    fc_multivariate_arima  %>% select(.model, date, .mean)  %>% 
-    accuracy(unemployment_test_ts) %>% 
-    rename("Model" = .model,
-           "Type" = .type)  %>% 
-    mutate(Model = "Multivariate ARIMA")  %>% 
-    select(Model:MAE, MAPE, MASE, RMSSE, -ME)
-bind_rows(multivariate_var_table_data)
-
-
-#Call kbl
-multivariate_table_data %>% 
-    kbl(caption = "Multivariate ARIMA and Var models", digits = 2) %>%
-    kable_classic(full_width = F, html_font = "Times new roman")
-
-
-
-
-########################################################################
-#################### FORECAST: CPI + EXPORT ############################
-########################################################################
-unemployment_dynamic_data <- unemployment_train_ts %>% 
-    left_join(cpi_train, by = "date")  %>% 
-    left_join(export_train, by = "date")  %>% 
-    select(-seasonal_unemployed)
-
-fit_tslm <- unemployment_dynamic_data  %>% 
-    model(ARIMA(unemployed ~ cpi + export))
-
-train_tslm_data <- fit_tslm  %>% 
-    augment()
-
-new_tslm_data <- new_data(train_tslm_data, 24)  %>% 
-    mutate(cpi = unemployment_dynamic_data$cpi %>% tail(1),
-           export = unemployment_dynamic_data$export %>% tail(1))  %>% 
-    select(-.model)  
-
-fc_tslm <- forecast(fit_tslm, new_data = new_tslm_data)
-
-fc_tslm %>% 
-    autoplot(unemployment_test_ts, level = 95)
-
-
-
-#########################################################################
-#################### FORECAST: DYNAMIC REGRESSION #######################
-#########################################################################
-
-
-
-
-
-
-
-
-
-
-=======
->>>>>>> 99d35b357ce1f8f40b9e03e934e6061b304f8c5f
+save(fc_arima_optimal, fc_ets_optimal, file = "../Data/optimal_models.Rdata")
