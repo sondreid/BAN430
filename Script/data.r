@@ -3,7 +3,7 @@
 ###############################################################################
 
 #setwd("G:/Dokumenter/Google drive folder/NHH/Master/BAN430/Repository/Script")
-#setwd("/Users/olaiviken/Documents/BAN430/BAN430/Data")
+#setwd("/Users/olaiviken/Documents/BAN430/BAN430/Script")
 
 # Choose the first if you use Mac OS and second if Windows
 #Sys.setenv(X13_PATH = "../x13binary/bin")
@@ -19,6 +19,7 @@
 ################################################################################
 library(fpp3)
 library(readxl)
+library(vars)
 library(lubridate)
 library(magrittr)
 library(tidyverse)
@@ -29,7 +30,6 @@ library(seasonal)
 library(kableExtra)
 
 #checkX13()
-
 
 ###############################################################################
 ############################ DATA RETRIEVAL ###################################
