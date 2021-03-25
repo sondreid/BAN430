@@ -555,7 +555,7 @@ load("../Data/arima_optimal.Rdata")
 
 
 arima_manual_fits <- unemployment_train_ts %>% 
-    dplyr::dplyr::select(date, unemployed) %>% 
+    dplyr::select(date, unemployed) %>% 
     model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)),
           ARIMA111011 = ARIMA(unemployed ~ pdq(1,1,1) + PDQ(0,1,1)),
           ARIMA313011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)),
@@ -642,7 +642,7 @@ fit_arima_optimal %>%
 
 
 fc_arima_optimal <- fit_arima_optimal %>% 
-    forecast(h = 12)
+    forecast(h = 24)
 
 # RMSE of ARIMA-optimal; two methods -------------------------------------------
 sqrt(mean((unemployment_test$unemployed - fc_arima_optimal$.mean)^2))
@@ -682,3 +682,4 @@ accuracy_models
 
 
 save(fc_arima_optimal, fc_ets_optimal, file = "../Data/optimal_models.Rdata")
+
