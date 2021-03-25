@@ -1,78 +1,4 @@
-###############################################################################
-################ Working Directory for Windows and Mac ########################
-###############################################################################
-
-#setwd("G:/Dokumenter/Google drive folder/NHH/Master/BAN430/Repository/Script")
-#setwd("/Users/olaiviken/Documents/BAN430/BAN430/Data")
-
-# Choose the first if you use Mac OS and second if Windows
-#Sys.setenv(X13_PATH = "../x13binary/bin")
-#Sys.setenv(X13_PATH = "../windows_x13/bin")
-
-
-" For installing the seasonal package without manual binary file"
-#install.packages("seasonal", type = "source") 
-
-
-################################################################################
-############################## LIBRARIES #######################################
-################################################################################
-library(fpp3)
-library(readxl)
-library(lubridate)
-library(magrittr)
-library(tidyverse)
-library(forecast)
-library(feasts)
-library(seasonal)
-#library(x13binary)
-library(kableExtra)
-
-#checkX13()
-
-
-###############################################################################
-############################ DATA RETRIEVAL ###################################
-###############################################################################
-
-unemp_df <- read_xls("../Data/US/unemployment_data.xls", sheet = 2)  %>% 
-    `colnames<-`( c("date", 
-                    "seasonal_unemp_men", 
-                    "seasonal_unemp_women", 
-                    "seasonal_unemp_less_high_school", 
-                    "seasonal_unemp_high_school", 
-                    "seasonal_unemp_college", 
-                    "unemployed", 
-                    "unemp_men" , 
-                    "unemp_women", 
-                    "unemp_less_high_school",
-                    "unemp_high_school",
-                    "unemp_college", 
-                    "seasonal_unemployed"))
-
-
-#################################################################################
-########################### Time series data sets ###############################
-#################################################################################
-unemployment <- unemp_df  %>% 
-    mutate(date = yearmonth(date))  %>% 
-    filter(year(date) >= 2000 & year(date) <= 2019)   %>% 
-    select(date, unemployed, seasonal_unemployed)   
-
-unemployment_train <- unemployment  %>% 
-    filter(year(date) <= 2017)  %>% 
-    select(date, unemployed, seasonal_unemployed)
-
-unemployment_test <- unemployment  %>% 
-    filter(year(date) > 2017)  %>% 
-    select(date, unemployed, seasonal_unemployed)
-
-unemployment_train_ts <-  unemployment_train %>% 
-    as_tsibble(index = date) 
-
-unemployment_test_ts <- unemployment %>% 
-    as_tsibble(index = date)
-
+source("data.r")
 
 ###################################################################################
 ############################ DESCRIPTIV STATISTICS ################################
@@ -614,6 +540,20 @@ unemployment_train_ts_stationarity %>%
 # ARIMA_optimal has Non-seasonal part pdq(5,1,0) and seasonal part PDQ(0,1,1) lag 12.
 
 # Different ARIMA models to fit the unemployment trainingset
+
+
+
+
+# Finding the global optimal ARIMA-model by minimizing AICc
+#fit_arima_optimal <- unemployment_train_ts %>% 
+ #   select(date, unemployed) %>% 
+  #  model(ARIMA_optimal = ARIMA(unemployed, 
+  #                              stepwise = FALSE,
+   #                             approximation = FALSE))
+#save(fit_arima_optimal, file = "../Data/arima_optimal.Rdata")
+load("../Data/arima_optimal.Rdata")
+
+
 arima_manual_fits <- unemployment_train_ts %>% 
     select(date, unemployed) %>% 
     model(ARIMA311011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)),
@@ -621,7 +561,7 @@ arima_manual_fits <- unemployment_train_ts %>%
           ARIMA313011 = ARIMA(unemployed ~ pdq(3,1,1) + PDQ(0,1,1)),
           ARIMA510111 = ARIMA(unemployed ~ pdq(5,1,0) + PDQ(1,1,0))
     ) %>% 
-    bind_cols(ARIMA_optimal)
+    bind_cols(fit_arima_optimal)
 
 
 
@@ -632,10 +572,6 @@ accuracy_arima <- bind_rows(
 )  %>% 
     arrange(.type, MASE)  
 
-# Residualplot 
-arima_manual_fits  %>%
-    select(ARIMA_optimal) %>%
-    gg_tsresiduals()
 
 
 
@@ -663,14 +599,7 @@ arima_manual_fits  %>% accuracy(unemployment_test_ts)
 
 
 #************************USING UNEMPLOYED**************************************#
-# Finding the global optimal ARIMA-model by minimizing AICc
-fit_arima_optimal <- unemployment_train_ts %>% 
-    select(date, unemployed) %>% 
-    model(ARIMA_optimal = ARIMA(unemployed, 
-                                stepwise = FALSE,
-                                approximation = FALSE))
 
-?CV
 ### Store in Rdata file
 fit_arima_optimal # Non-seasonal part (p,d,q) = (3,0,1) and Seasonal-part (P,D,Q)m = (0,1,1)12
 
@@ -753,6 +682,7 @@ accuracy_models
 
 
 
+<<<<<<< HEAD
 ########## LOAD NEW VARIABLES #######################
 
 ## CPI data
@@ -923,3 +853,5 @@ fc_tslm %>%
 
 
 
+=======
+>>>>>>> 99d35b357ce1f8f40b9e03e934e6061b304f8c5f
