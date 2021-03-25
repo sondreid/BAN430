@@ -2,10 +2,10 @@
 ########################## Multivariate models ################################
 ###############################################################################
 
+#setwd("/Users/olaiviken/Documents/BAN430/BAN430/Data/Script")
+#setwd("G:/Dokumenter/Google drive folder/NHH/Master/BAN430/Repository/Script")
 # Sourcing data from data.r 
 source("data.r")
-
-
 
 ###############################################################################
 ################## Stationarity test: Exports and CPI #########################
@@ -13,6 +13,7 @@ source("data.r")
 
 # Joining unemployment data with consumer price index (cpi) and export
 multivariate_data <- unemployment_train_ts %>% 
+    select(date, unemployed)  %>% 
     left_join(cpi_train, by = "date")  %>% 
     left_join(export_train, by = "date") 
 
@@ -44,7 +45,60 @@ multivariate_data  %>%
 
 # Export: KPSS test. Outcome: 1% p-value, needs differencing
 multivariate_data  %>% 
-    features(export, unitroot_kpss)
+    features(export, unitroot_kpss) 
+
+
+# Bic optimized model
+fit_multivariate_var <- multivariate_data_stationary %>% 
+    model(VAR = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export) ~ AR(0:12), ic = "aicc"))
+
+######################################################################################
+#################### Non-statinary multivariate model ################################
+######################################################################################
+## Forecasting using vars package
+library(vars)
+
+#bic optimized
+fit_multivariate_var <- multivariate_data %>% 
+    model(VAR_aicc = fable::VAR(vars(unemployed, cpi, export), ic = "aicc"),
+          VAR_aic = fable::VAR(vars(unemployed, cpi, export)~AR(13)),
+          VAR_bic =  fable::VAR(vars(unemployed, cpi, export) ~AR(5:20), ic = "bic"))
+
+VARselect(multivariate_data[,2:4], lag.max =24, type="const")[["selection"]]
+#Fit VAR(1)
+var1 <- vars:: VAR(ts(multivariate_data[,2:4]), p = 1, type="const")
+var2 <- vars:: VAR(ts(multivariate_data[,2:4]), p = 2, type="const")
+var4 <- vars:: VAR(ts(multivariate_data[,2:4]), p = 4, type="const")
+var5 <- vars:: VAR(ts(multivariate_data[,2:4]), p = 5, type="const")
+
+
+"Failed portmanteau test: Set of autocorrelation tests most likely ljung box test for several variables"
+serial.test(var4, lags.pt=24, type="PT.asymptotic")
+
+forecast(object= var4, h = 24) %>%
+  autoplot() + xlab("Month")
+
+fc_multivariate_var <- fit_multivariate_var  %>%  
+    forecast(h = 24)  %>% 
+    filter(.model == "VAR_aic") %>%
+    as_tsibble(index = date)
+
+                  
+fc_multivariate_var  %>% 
+    ggplot() +
+    geom_line(aes(x = date, y  = .mean_unemployed , color = "Multivariate forecasts")) +
+    geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
+    #geom_line(aes(x = date, y = .fitted , color = "Fitted"), data = fit_multivariate_var %>% augment() %>% filter(.response == "unemployed")) +
+    theme_bw() +
+    scale_colour_manual(values=c("#56B4E9", "black", "#56e99b")) +
+    theme(legend.position = "bottom") +
+    labs(title = "Multivariate forecaste",
+         y = "Unemployment level",
+         x = "Month") +
+    guides(colour = guide_legend(title = "Series"))
+
+
+
 
 
 
@@ -57,7 +111,9 @@ multivariate_data_stationary <- multivariate_data  %>%
            diff_export                   = difference(export),
            diff_cpi                      = difference(cpi))  %>% 
     select(date, diff_diff_seasonal_unemployed, diff_export, diff_cpi)  %>% 
-    as_tsibble()  %>% 
+    as_tsibble()  
+    
+ multivariate_data_stationary   %<>% 
     filter(date > yearmonth("2001-01-01"))
 
 
@@ -69,20 +125,22 @@ multivariate_data_stationary <- multivariate_data  %>%
 
 # Bic optimized model
 fit_multivariate_var <- multivariate_data_stationary %>% 
-    model(VAR = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export) ~ AR(0:5), ic = "bic"))
+    model(VAR = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export) ~ AR(0:12), ic = "aicc"))
 
 
 ## Forecasting using vars package
 library(vars)
 VARselect(multivariate_data_stationary[,2:4], lag.max =24, type="const")[["selection"]]
 #Fit VAR(1)
-var1 <- VAR(ts(multivariate_data_stationary[,2:4]), p = 1, type="const")
-var2 <- VAR(ts(multivariate_data_stationary[,2:4]), p = 2, type="const")
+var1 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 1, type="const")
+var2 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 2, type="const")
+var5 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 5, type="const")
+
 
 "Failed portmanteau test: Set of autocorrelation tests most likely ljung box test for several variables"
-serial.test(var2, lags.pt=12, type="PT.asymptotic")
+serial.test(var5, lags.pt=24, type="PT.asymptotic")
 
-forecast(object= var2, h = 12) %>%
+forecast(object= var2, h = 24) %>%
   autoplot() + xlab("Month")
 
 
@@ -91,9 +149,16 @@ fc_multivariate_var <- fit_multivariate_var  %>%
     forecast(h = 24)  %>% 
     as_tsibble(index = date)
 
-fc_multivariate_var  %>% 
+forecast_level <- fc_multivariate_var %>% 
+                  dplyr::select(".mean_diff_diff_seasonal_unemployed")  %>% 
+                  rename(diff_unemployed = ".mean_diff_diff_seasonal_unemployed")  %>% 
+                  mutate(diff_unemployed = diff_unemployed +  multivariate_data$unemployed %>% tail(1)) ## Add level
+                  
+
+
+forecast_level  %>% 
     ggplot() +
-    geom_line(aes(x = date, y  = .mean_diff_diff_seasonal_unemployed, color = "Multivariate forecasts")) +
+    geom_line(aes(x = date, y  = diff_unemployed, color = "Multivariate forecasts")) +
     geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment  %>% filter(date > yearmonth("2001-01-01"))) +
     #geom_line(aes(x = date, y = .fitted , color = "Fitted"), data = fit_multivariate_var %>% augment() %>% filter(.response == "unemployed")) +
     theme_bw() +
@@ -103,16 +168,6 @@ fc_multivariate_var  %>%
          y = "Unemployment level",
          x = "Month") +
     guides(colour = guide_legend(title = "Series"))
-
-
-#Portmantau residual tests
-
-
-
-
-
-
-
 
 
 
