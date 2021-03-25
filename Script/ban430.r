@@ -885,7 +885,7 @@ multivariate_table_data %>%
 
 
 ########################################################################
-#################### Forecast with CPI + EXPORT ########################
+#################### FORECAST: CPI + EXPORT ############################
 ########################################################################
 unemployment_dynamic_data <- unemployment_train_ts %>% 
     left_join(cpi_train, by = "date")  %>% 
@@ -893,17 +893,33 @@ unemployment_dynamic_data <- unemployment_train_ts %>%
     select(-seasonal_unemployed)
 
 fit_tslm <- unemployment_dynamic_data  %>% 
-    model(ARIMA(unemployed ~ cpi + export + pdq(0,0,0) + PDQ(0,0,0)))
+    model(ARIMA(unemployed ~ cpi + export))
 
 train_tslm_data <- fit_tslm  %>% 
     augment()
 
 new_tslm_data <- new_data(train_tslm_data, 24)  %>% 
-    mutate(cpi = mean(unemployment_dynamic_data$cpi),
-           export = mean(unemployment_dynamic_data$export))  %>% 
+    mutate(cpi = unemployment_dynamic_data$cpi %>% tail(1),
+           export = unemployment_dynamic_data$export %>% tail(1))  %>% 
     select(-.model)  
 
 fc_tslm <- forecast(fit_tslm, new_data = new_tslm_data)
 
 fc_tslm %>% 
-    autoplot(unemployment_test_ts)
+    autoplot(unemployment_test_ts, level = 95)
+
+
+
+#########################################################################
+#################### FORECAST: DYNAMIC REGRESSION #######################
+#########################################################################
+
+
+
+
+
+
+
+
+
+
