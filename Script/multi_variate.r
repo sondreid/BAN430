@@ -56,7 +56,11 @@ multivariate_data_stationary <- multivariate_data  %>%
     mutate(diff_diff_seasonal_unemployed = difference(difference(unemployed, lag = 12)),
            diff_export                   = difference(export),
            diff_cpi                      = difference(cpi))  %>% 
-           select(date,diff_diff_seasonal_unemployed, diff_export, diff_cpi)
+    select(date, diff_diff_seasonal_unemployed, diff_export, diff_cpi)  %>% 
+    as_tsibble()  %>% 
+    filter(date > yearmonth("2001-01-01"))
+
+
 
 
 ################################################################################
@@ -65,13 +69,22 @@ multivariate_data_stationary <- multivariate_data  %>%
 
 # Bic optimized model
 fit_multivariate_var <- multivariate_data_stationary %>% 
-    model(VAR = fable::VAR(vars(diff_diff_seasonal_unemployed, diff_cpi, diff_export), ic = "bic"))
+    model(VAR = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export) ~ AR(0:5), ic = "bic"))
 
 
+## Forecasting using vars package
 library(vars)
-test <- VARselect(multivariate_data_stationary[,2:5], lag.max =24, type="const")
+VARselect(multivariate_data_stationary[,2:4], lag.max =24, type="const")[["selection"]]
+#Fit VAR(1)
+var1 <- VAR(ts(multivariate_data_stationary[,2:4]), p = 1, type="const")
+var2 <- VAR(ts(multivariate_data_stationary[,2:4]), p = 2, type="const")
 
-test <- VAR(multivariate_data_stationary, p=1, type="const")
+"Failed portmanteau test: Set of autocorrelation tests most likely ljung box test for several variables"
+serial.test(var2, lags.pt=12, type="PT.asymptotic")
+
+forecast(object= var2, h = 12) %>%
+  autoplot() + xlab("Month")
+
 
 
 fc_multivariate_var <- fit_multivariate_var  %>% 
@@ -81,8 +94,8 @@ fc_multivariate_var <- fit_multivariate_var  %>%
 fc_multivariate_var  %>% 
     ggplot() +
     geom_line(aes(x = date, y  = .mean_diff_diff_seasonal_unemployed, color = "Multivariate forecasts")) +
-    geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
-    geom_line(aes(x = date, y = .fitted , color = "Fitted"), data = fit_multivariate_var %>% augment() %>% filter(.response == "unemployed")) +
+    geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment  %>% filter(date > yearmonth("2001-01-01"))) +
+    #geom_line(aes(x = date, y = .fitted , color = "Fitted"), data = fit_multivariate_var %>% augment() %>% filter(.response == "unemployed")) +
     theme_bw() +
     scale_colour_manual(values=c("#56B4E9", "black", "#56e99b")) +
     theme(legend.position = "bottom") +
@@ -108,7 +121,8 @@ fc_multivariate_var  %>%
 #################### Dynamic regression: ARIMA ######################
 #####################################################################
 
-
+"Interpretation of task:
+Forecast (using a fitting ARIMA model) each of the other two variable. Then do a combined forecast"
 
 
 fit_multivariate_arima <- multivariate_data %>% 
