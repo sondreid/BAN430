@@ -55,7 +55,7 @@ cpi_data <- read_csv("../Data/US/cpi_data.csv") %>%
     rename("date" = TIME, "cpi" = Value)  %>% 
     mutate(date = yearmonth(as.Date(paste(as.character(date), "-01", sep =""))))  %>% 
     filter(year(date) >= 2000, LOCATION == "USA")   %>% 
-    select(date, cpi)  %>% 
+    dplyr::select(date, cpi)  %>% 
     as_tsibble(index = date) 
 
 cpi_train <- cpi_data  %>% filter(year(date) <= 2017)
@@ -64,7 +64,7 @@ export_ts <- read_csv("../Data/US/export_data.csv")  %>%
     rename("date" = TIME, "export" = Value)  %>% 
     mutate(date = yearmonth(as.Date(paste(as.character(date), "-01", sep =""))))  %>% 
     filter(LOCATION == "USA", year(date) >= 2000 & year(date) <= 2019) %>%
-    select(date, export)  %>% 
+    dplyr::select(date, export)  %>% 
     as_tsibble(index = date) 
 
 export_train <- export_ts  %>% 
@@ -78,15 +78,15 @@ export_train <- export_ts  %>%
 unemployment <- unemp_df  %>% 
     mutate(date = yearmonth(date))  %>% 
     filter(year(date) >= 2000 & year(date) <= 2019)   %>% 
-    select(date, unemployed, seasonal_unemployed)   
+    dplyr::select(date, unemployed, seasonal_unemployed)   
 
 unemployment_train <- unemployment  %>% 
     filter(year(date) <= 2017)  %>% 
-    select(date, unemployed, seasonal_unemployed)
+    dplyr::select(date, unemployed, seasonal_unemployed)
 
 unemployment_test <- unemployment  %>% 
     filter(year(date) > 2017)  %>% 
-    select(date, unemployed, seasonal_unemployed)
+    dplyr::select(date, unemployed, seasonal_unemployed)
 
 unemployment_train_ts <-  unemployment_train %>% 
     as_tsibble(index = date) 

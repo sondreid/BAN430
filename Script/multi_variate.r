@@ -13,7 +13,7 @@ source("data.r")
 
 # Joining unemployment data with consumer price index (cpi) and export
 multivariate_data <- unemployment_train_ts %>% 
-    select(date, unemployed)  %>% 
+    dplyr::select(date, unemployed)  %>% 
     left_join(cpi_train, by = "date")  %>% 
     left_join(export_train, by = "date") 
 
@@ -70,7 +70,7 @@ ggtsdisplay(difference(multivariate_data$export),
 multivariate_data_stationary <- multivariate_data  %>% 
     mutate(diff_diff_seasonal_unemployed = difference(difference(unemployed, lag = 12)),
            diff_export                   = difference(export),
-           diff_cpi                      = difference(cpi)  %>% 
+           diff_cpi                      = difference(cpi))  %>% 
     dplyr::select(date, diff_diff_seasonal_unemployed, diff_export, diff_cpi)  %>% 
     as_tsibble()  
     
@@ -141,19 +141,19 @@ aicc <- forecast_level %>% filter(.model == "VAR_aicc")
 bic <- forecast_level %>% filter(.model == "VAR_bic")
 
 data.frame(Model = "Multivariate VAR model AICc optimized", 
-                                          Type = "Test", 
-                                          RMSE = RMSE(unemployment_test$unemployed, aicc$diff_unemployed),
-                                          MAE =  MAE(unemployment_test$unemployed, aicc$diff_unemployed),
-                                          MAPE = MAPE(unemployment_test$unemployed, aicc$diff_unemployed),
-                                          MASE = MASE(unemployment_test$unemployed, aicc$diff_unemployed, .period = 12),
-                                          RMSSE = RMSSE(unemployment_test$unemployed, aicc$diff_unemployed, .period = 12)) %>% 
-                    bind_rows( data.frame(Model = "Multivariate VAR model BIC optimized", 
-                                          Type = "Test", 
-                                          RMSE = RMSE(unemployment_test$unemployed, bic$diff_unemployed),
-                                          MAE =  MAE(unemployment_test$unemployed, bic$diff_unemployed),
-                                          MAPE = MAPE(unemployment_test$unemployed, bic$diff_unemployed),
-                                          MASE = MASE(unemployment_test$unemployed, bic$diff_unemployed, .period = 12),
-                                          RMSSE = RMSSE(unemployment_test$unemployed, bic$diff_unemployed, .period = 12))) %>% 
+            Type = "Test", 
+            RMSE = RMSE(unemployment_test$unemployed, aicc$diff_unemployed),
+            MAE =  MAE(unemployment_test$unemployed, aicc$diff_unemployed),
+            MAPE = MAPE(unemployment_test$unemployed, aicc$diff_unemployed),
+            MASE = MASE(unemployment_test$unemployed, aicc$diff_unemployed, .period = 12),
+            RMSSE = RMSSE(unemployment_test$unemployed, aicc$diff_unemployed, .period = 12)) %>% 
+    bind_rows( data.frame(Model = "Multivariate VAR model BIC optimized", 
+            Type = "Test", 
+            RMSE = RMSE(unemployment_test$unemployed, bic$diff_unemployed),
+            MAE =  MAE(unemployment_test$unemployed, bic$diff_unemployed),
+            MAPE = MAPE(unemployment_test$unemployed, bic$diff_unemployed),
+            MASE = MASE(unemployment_test$unemployed, bic$diff_unemployed, .period = 12),
+            RMSSE = RMSSE(unemployment_test$unemployed, bic$diff_unemployed, .period = 12))) %>% 
     kbl(caption = "Multivariate VAR models", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
@@ -161,61 +161,69 @@ data.frame(Model = "Multivariate VAR model AICc optimized",
 
 
 
-###################################################################################
-################ Multivariate foorecast with VECM #################################
-###################################################################################
+#################################################################################################
+############################## Multivariate foorecast with VECM #################################
+#################################################################################################
 "Cointegrated stochastic trends --> VECM"
 
 library(urca) # Load package
 library(tsDyn)
 library(bvartools)
 # Johansen test
-ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = "eigen",
-             K = 5, spec = "longrun") ## 5 AR terms
+### Identify cointegration between variables
+ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = c("eigen", "trace"),
+             K = 5, spec = "longrun") ## k = 5 AR terms
 
 summary(ca_jo)
 
 vecm_seas_constant <- gen_vec(data = ts(multivariate_data[,2:4]),
                               p = 5, r = 1)
 
-VECM_model_var_5 <- VECM(ts(multivariate_data[,2:4]), lag = 5, r = 1, exogen = vecm_seas_constant)
+VECM_model_var_5 <- VECM(multivariate_data[,2:4], lag = 3, r = 1, exogen = vecm_seas_constant, estim = "ML")
 
 
-var_vec <- vec2var(ca_jo, r =2)
+var_vec <- vec2var(ca_jo, r =1)
 summary(var_vec)
-
+serial.test(var_vec, lags.pt=24, type="PT.asymptotic")
 
 fc_var_vec <- predict(var_vec, n.ahead = 24)
+
 plot(fc_var_vec)
 
 ###################################################################################################
 ############################### Dynamic regression: ARIMA #########################################
 ###################################################################################################
 
-"Interpretation of task:
-Forecast (using a fitting ARIMA model) each of the other two variable. Then do a combined forecast"
+#Interpretation of task:
+#Forecast (using a fitting ARIMA model) each of the other two variable. Then do a combined forecast
 
 ################################
 # Forecasting of each regressors
 ################################
 
 # CPI: fit models
-fit_cpi <- multivariate_data  %>% 
-    model(arima = ARIMA(cpi, stepwise = FALSE, approximation = FALSE),
-          ets   = ETS(cpi),
-          naive = NAIVE(cpi),
-          snaive= SNAIVE(cpi),
-          mean  = MEAN(cpi),
-          drift = RW(cpi ~ drift()))
+#fit_cpi <- multivariate_data  %>% 
+#    model(arima = ARIMA(cpi, stepwise = FALSE, approximation = FALSE),
+#          ets   = ETS(cpi),
+#          naive = NAIVE(cpi),
+#          snaive= SNAIVE(cpi),
+#          mean  = MEAN(cpi),
+#          drift = RW(cpi ~ drift()))
 
 # Export: fit models
-fit_export <-  multivariate_data  %>% 
-    model(arima = ARIMA(export, stepwise = FALSE, approximation = FALSE),
-          ets   = ETS(export),
-          naive = NAIVE(export),
-          snaive= SNAIVE(export),
-          mean  = MEAN(export),
-          drift = RW(export ~ drift()))
+#fit_export <-  multivariate_data  %>% 
+#    model(arima = ARIMA(export, stepwise = FALSE, approximation = FALSE),
+#          ets   = ETS(export),
+#          naive = NAIVE(export),
+#          snaive= SNAIVE(export),
+#          mean  = MEAN(export),
+#          drift = RW(export ~ drift()))
+
+# Saving the fitted models to RData file
+#save(fit_cpi, fit_export, file = "../Data/dynamic_regression_export_cpi_fit.Rdata")
+
+# Load the fitted models
+load("../Data/dynamic_regression_export_cpi_fit.Rdata")
 
 # CPI: forecast
 fc_cpi <- fit_cpi  %>% 
@@ -225,9 +233,9 @@ fc_cpi <- fit_cpi  %>%
 fc_export <- fit_export  %>% 
     forecast(h = 24)
 
-# CPI: test accuracy, outcome: ARIMA(2,1,3)(0,0,1)[12]
-fc_cpi  %>% 
-    accuracy(multivariate_data)  %>% 
+# CPI: traning accuracy, outcome: ARIMA(2,1,3)(0,0,1)[12]
+fit_cpi  %>% 
+    accuracy()  %>% 
     arrange(MASE)  %>% 
     dplyr::select(-ME, -ACF1)
 
@@ -242,7 +250,7 @@ fit_multivariate_arima <- multivariate_data %>%
     model(ARIMA(unemployed ~ cpi + export, stepwise = FALSE, approximation = FALSE))
 report(fit_multivariate_arima)
 
-#  
+# ARIMA forecasts of CPI and Export 
 fc_predictors_arima <- new_data(fit_multivariate_arima  %>% augment(), 24)  %>% 
     left_join(fc_cpi  %>%  filter(.model == "arima"), by = "date")  %>% 
     left_join(fc_export %>%  filter(.model == "arima"), by = "date")  %>% 
@@ -250,9 +258,11 @@ fc_predictors_arima <- new_data(fit_multivariate_arima  %>% augment(), 24)  %>%
     rename(cpi = .mean.x,
            export = .mean.y)  
 
-fc_multivariate_arima <- forecast(fit_multivariate_arima, new_data = fc_predictors_arima)  
+# Forecast of Unemployment level with forecasted predictors using ARIMA method
+fc_multivariate_arima <- forecast(fit_multivariate_arima, 
+                                  new_data = fc_predictors_arima)  
 
-
+# Plot: Forecast of Unemployment level with forecasted predictors using ARIMA method
 fc_multivariate_arima %>% 
     ggplot() +
     geom_line(aes(x = date, y  = .mean, color = "Multivariate")) +
@@ -264,6 +274,60 @@ fc_multivariate_arima %>%
          y = "Unemployment level",
          x = "Month") +
     guides(colour = guide_legend(title = "Series"))
+
+
+# NAIVE forecast of CPI and Export
+fc_predictors_naive <- new_data(fit_multivariate_arima  %>% augment(), 24)  %>% 
+    left_join(fc_cpi  %>%  filter(.model == "naive"), by = "date")  %>% 
+    left_join(fc_export %>%  filter(.model == "naive"), by = "date")  %>% 
+    dplyr::select(-.model.x, -.model.y, -.model, -cpi, -export)  %>% 
+    rename(cpi = .mean.x,
+           export = .mean.y) 
+
+# Forecast of Unemployment level with forecasted predictors using NAIVE method
+fc_multivariate_naive <- forecast(fit_multivariate_arima, 
+                                  new_data = fc_predictors_naive)  
+
+# Plot: Forecast of Unemployment level with forecasted predictors using NAIVE method
+fc_multivariate_naive %>% 
+    ggplot() +
+    geom_line(aes(x = date, y  = .mean, color = "Multivariate")) +
+    geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
+    theme_bw() +
+    scale_colour_manual(values=c("#56B4E9", "black")) +
+    theme(legend.position = "bottom") +
+    labs(title = "Multivariate forecaste",
+         y = "Unemployment level",
+         x = "Month") +
+    guides(colour = guide_legend(title = "Series"))
+
+# Forecast: accuracy
+bind_rows(
+    "Predctors_ARIMA" <- fc_multivariate_arima  %>% accuracy(unemployment_test_ts),
+    "Predctors_NAIVE" = fc_multivariate_naive  %>% accuracy(unemployment_test_ts))  %>% 
+    dplyr::select(-ME, -ACF1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 Residual <- fit_multivariate_arima_augment$.innov
 
