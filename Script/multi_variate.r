@@ -26,31 +26,42 @@ ggtsdisplay(multivariate_data$cpi,
 
 # Export: Autocorrelation plots
 ggtsdisplay(multivariate_data$export, 
-            plot.type = "partial", 
-            lag.max = 24, 
-            theme = theme_bw(),
-            main = "Exports")
-
-# CPI: Ljung-box test. Outcome: 0% p-value, clearly autocorrelation problems
-multivariate_data  %>% 
-    features(cpi, ljung_box, lag = 24, dof = 8)
+    plot.type = "partial", 
+    lag.max = 24, 
+    theme = theme_bw(),
+    main = "Exports")
 
 # CPI: KPSS test. Outcome: 1.26% p-value, needs differencing
 multivariate_data  %>% 
     features(cpi, unitroot_kpss)
 
-# Export: Ljung-box test. Outcome: 0% p-value, clearly autocorrelation problems
+# CPI: KPSS test. Outcome: 10% p-value, no need for further differencing
 multivariate_data  %>% 
-    features(export, ljung_box, lag = 24, dof = 8)
+    features(difference(cpi), unitroot_kpss)
+
+# CPI: Autocorrelation plots after difference
+ggtsdisplay(difference(multivariate_data$cpi), 
+            plot.type = "partial", 
+            lag.max = 24, 
+            theme = theme_bw(),
+            main = "Differenced CPI")
 
 # Export: KPSS test. Outcome: 1% p-value, needs differencing
 multivariate_data  %>% 
     features(export, unitroot_kpss) 
 
+# Export: KPSS test. Outcome: 10% p-value, no need for further differencing
+multivariate_data  %>% 
+    features(difference(export), unitroot_kpss)
 
-# Bic optimized model
-fit_multivariate_var <- multivariate_data_stationary %>% 
-    model(VAR = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export) ~ AR(0:12), ic = "aicc"))
+# Export: Autocorrelation plots after difference
+ggtsdisplay(difference(multivariate_data$export), 
+            plot.type = "partial", 
+            lag.max = 24, 
+            theme = theme_bw(),
+            main = "Differenced Export")
+
+
 
 ######################################################################################
 #################### Non-statinary multivariate model ################################
@@ -119,14 +130,78 @@ multivariate_data_stationary <- multivariate_data  %>%
 
 
 
-################################################################################
-######################## Multivariate forecast: VAR ############################
-################################################################################
+##################################################################################
+########### Multivariate forecast with stationary data: VAR ######################
+##################################################################################
 
-# Bic optimized model
+# VAR: optimal model by AICc and BIC
 fit_multivariate_var <- multivariate_data_stationary %>% 
-    model(VAR = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export) ~ AR(0:12), ic = "aicc"))
+    model(VAR_aicc = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export), ic = "aicc"),
+          VAR_bic = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export), ic = "bic"))
 
+# VAR: forecasts
+fc_multivariate_var <- fit_multivariate_var  %>% 
+    forecast(h = 24)  %>% 
+    as_tsibble(index = date)
+
+# VAR: forecast adjusted with level
+forecast_level <- fc_multivariate_var %>% 
+                  dplyr::select(".mean_diff_diff_seasonal_unemployed")  %>% 
+                  rename(diff_unemployed = ".mean_diff_diff_seasonal_unemployed")  %>% 
+                  group_by(.model)  %>% 
+                  mutate(diff_unemployed = cumsum(diff_unemployed) +  multivariate_data$unemployed %>% tail(1)) ## Add level
+
+# AICc and BIC optimized forecast, VAR(5) and VAR(1)           
+forecast_level  %>% 
+    autoplot() +
+    autolayer(unemployment_test_ts) +
+    theme_bw() +
+    theme(legend.position = "bottom") +
+    labs(y = "Unemployment level",
+         x = "Month",
+         title = "Forecasting with VAR methods") +
+    guides(colour = guide_legend(title = "Method:"))
+
+
+# VAR: accuracy
+ RMSSE(forecast_level$diff_unemployed, unemployment_test_ts$unemployed, .period = 1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Old plot
+forecast_level   %>% 
+    ggplot() +
+    geom_line(aes(x = date, y  = diff_unemployed, color = "Multivariate forecasts")) +
+    geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment  %>% filter(date > yearmonth("2001-01-01"))) +
+    #geom_line(aes(x = date, y = .fitted , color = "Fitted"), data = fit_multivariate_var %>% augment() %>% filter(.response == "unemployed")) +
+    theme_bw() +
+    scale_colour_manual(values=c("#56B4E9", "black", "#56e99b")) +
+    theme(legend.position = "bottom") +
+    labs(title = "Multivariate forecaste",
+         y = "Unemployment level",
+         x = "Month") +
+    guides(colour = guide_legend(title = "Series"))
+
+
+
+
+
+###############################
 
 ## Forecasting using vars package
 library(vars)
@@ -142,34 +217,6 @@ serial.test(var5, lags.pt=24, type="PT.asymptotic")
 
 forecast(object= var2, h = 24) %>%
   autoplot() + xlab("Month")
-
-
-
-fc_multivariate_var <- fit_multivariate_var  %>% 
-    forecast(h = 24)  %>% 
-    as_tsibble(index = date)
-
-forecast_level <- fc_multivariate_var %>% 
-                  dplyr::select(".mean_diff_diff_seasonal_unemployed")  %>% 
-                  rename(diff_unemployed = ".mean_diff_diff_seasonal_unemployed")  %>% 
-                  mutate(diff_unemployed = diff_unemployed +  multivariate_data$unemployed %>% tail(1)) ## Add level
-                  
-
-
-forecast_level  %>% 
-    ggplot() +
-    geom_line(aes(x = date, y  = diff_unemployed, color = "Multivariate forecasts")) +
-    geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment  %>% filter(date > yearmonth("2001-01-01"))) +
-    #geom_line(aes(x = date, y = .fitted , color = "Fitted"), data = fit_multivariate_var %>% augment() %>% filter(.response == "unemployed")) +
-    theme_bw() +
-    scale_colour_manual(values=c("#56B4E9", "black", "#56e99b")) +
-    theme(legend.position = "bottom") +
-    labs(title = "Multivariate forecaste",
-         y = "Unemployment level",
-         x = "Month") +
-    guides(colour = guide_legend(title = "Series"))
-
-
 
 
 #####################################################################
