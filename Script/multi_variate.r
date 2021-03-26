@@ -246,6 +246,9 @@ fc_var_vec  %>%
 # Load the fitted models
 load("../Data/dynamic_regression_export_cpi_fit.Rdata")
 
+fit_cpi
+fit_export
+
 # CPI: forecast
 fc_cpi <- fit_cpi  %>% 
   forecast(h = 24)
@@ -258,13 +261,18 @@ fc_export <- fit_export  %>%
 fit_cpi  %>% 
   accuracy()  %>% 
   arrange(MASE)  %>% 
-  dplyr::select(-ME, -ACF1)
+  dplyr::select(-ME, -ACF1) %>% 
+  kbl(caption = "Model fitting of predictor: CPI", digits = 2) %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
 
 # Export: training accuracy, outcome: ARIMA(2,1,2)(0,0,2)[12] w/ drift
-fit_cpi  %>% 
+fit_export  %>% 
   accuracy()  %>% 
   arrange(MASE)   %>% 
-  dplyr::select(-ME, -ACF1)
+  dplyr::select(-ME, -ACF1) %>% 
+  kbl(caption = "Model fitting of predictor: Export", digits = 2) %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
 
 # ARIMA optimized model by reducing AICc
 # fit_dynamic_arima <- multivariate_data %>% 
@@ -272,7 +280,7 @@ fit_cpi  %>%
 
 #save(fit_dynamic_arima, file = "../Data/fit_dynamic_arima.Rdata")
 load("../Data/fit_dynamic_arima.Rdata")
-
+fit_dynamic_arima
 report(fit_dynamic_arima)
 
 # ARIMA forecasts of CPI and Export 
@@ -284,21 +292,27 @@ fc_predictors_arima <- new_data(fit_dynamic_arima  %>% augment(), 24)  %>%
          export = .mean.y)  
 
 # Forecast of Unemployment level with forecasted predictors using ARIMA method
+fc_dynamic_arima_forecastobject <- forecast(fit_dynamic_arima,
+                             new_data = fc_predictors_arima) %>% 
+  mutate(Model = c("Predictor ARIMA"))
+
 fc_dynamic_arima <- forecast(fit_dynamic_arima,
-                             new_data = fc_predictors_arima)
+                             new_data = fc_predictors_arima) %>% 
+  mutate(Model = c("Predictor ARIMA")) %>% 
+  as_tibble()
 
 # Plot: Forecast of Unemployment level with forecasted predictors using ARIMA method
-fc_dynamic_arima %>% 
-  ggplot() +
-  geom_line(aes(x = date, y  = .mean, color = "Multivariate")) +
-  geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
-  theme_bw() +
-  scale_colour_manual(values=c("#56B4E9", "black")) +
-  theme(legend.position = "bottom") +
-  labs(title = "Dynamic forecaste",
-       y = "Unemployment level",
-       x = "Month") +
-  guides(colour = guide_legend(title = "Series"))
+# fc_dynamic_arima %>% 
+#   ggplot() +
+#   geom_line(aes(x = date, y  = .mean, color = "Multivariate")) +
+#   geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
+#   theme_bw() +
+#   scale_colour_manual(values=c("#56B4E9", "black")) +
+#   theme(legend.position = "bottom") +
+#   labs(title = "Dynamic forecaste",
+#        y = "Unemployment level",
+#        x = "Month") +
+#   guides(colour = guide_legend(title = "Series"))
 
 
 # NAIVE forecast of CPI and Export
@@ -310,26 +324,50 @@ fc_predictors_naive <- new_data(fit_dynamic_arima  %>% augment(), 24)  %>%
          export = .mean.y) 
 
 # Forecast of Unemployment level with forecasted predictors using NAIVE method
+fc_dynamic_naive_forecastobject <- forecast(fit_dynamic_arima, 
+                             new_data = fc_predictors_naive)  %>% 
+  mutate(Model = c("Predictor NAIVE"))
+
 fc_dynamic_naive <- forecast(fit_dynamic_arima, 
-                             new_data = fc_predictors_naive)
+                             new_data = fc_predictors_naive)  %>% 
+  mutate(Model = c("Predictor NAIVE")) %>% 
+  as_tibble()
+  
 
 # Plot: Forecast of Unemployment level with forecasted predictors using NAIVE method
-fc_dynamic_naive %>% 
+# fc_dynamic_naive %>% 
+#   ggplot() +
+#   geom_line(aes(x = date, y  = .mean, color = "Multivariate")) +
+#   geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
+#   theme_bw() +
+#   scale_colour_manual(values=c("#56B4E9", "black")) +
+#   theme(legend.position = "bottom") +
+#   labs(title = "Dynamic forecaste",
+#        y = "Unemployment level",
+#        x = "Month") +
+#   guides(colour = guide_legend(title = "Series"))
+
+# Forecast ARIMA model with ARIMA and NAIVE forecasted predictors cpi and export
+fc_dynamic <- bind_rows(
+                        fc_dynamic_naive,
+                        fc_dynamic_arima)
+
+fc_dynamic %>% 
   ggplot() +
-  geom_line(aes(x = date, y  = .mean, color = "Multivariate")) +
+  geom_line(aes(x = date, y  = .mean, color = Model)) +
   geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
   theme_bw() +
-  scale_colour_manual(values=c("#56B4E9", "black")) +
+  scale_colour_manual(values=c("black", "#56B4E9", "orange")) +
   theme(legend.position = "bottom") +
-  labs(title = "Dynamic forecaste",
+  labs(title = "Dynamic forecast",
        y = "Unemployment level",
        x = "Month") +
   guides(colour = guide_legend(title = "Series"))
 
 # Forecast: accuracy
 bind_rows(
-  fc_dynamic_arima  %>% accuracy(unemployment_test_ts) %>% mutate(Model = c("Predictor ARIMA")),
-  fc_dynamic_naive  %>% accuracy(unemployment_test_ts)  %>% mutate(Model = c("Predictor NAIVE"))) %>% 
+  fc_dynamic_arima_forecastobject %>% accuracy(unemployment_test_ts) %>% mutate(Model = c("ARIMA forecast with ARIMA forecasted predictors")),
+  fc_dynamic_naive_forecastobject %>% accuracy(unemployment_test_ts)  %>% mutate(Model = c("ARIMA forecast with NAIVE forecasted predictors"))) %>% 
   dplyr::select(-ME, -ACF1, -.model, -.type) %>% 
   arrange(MASE) %>% 
   relocate(Model)  %>% 
@@ -348,6 +386,46 @@ ggtsdisplay(Residual,
 
 fit_multivariate_arima_augment  %>% 
    features(.innov, ljung_box, lag = 24, dof = 4)
+
+
+
+###################################################################################################
+############################### DETERMINISTIC FORECAST ############################################
+###################################################################################################
+fit_deterministic <- unemployment_train_ts %>% 
+  dplyr::select(date, unemployed) %>% 
+  model(Deterministic = ARIMA(unemployed ~ 1 + trend() + pdq(d=0)))
+
+fc_deterministic <- fit_deterministic %>% 
+  forecast(h = 24)
+
+Residuals <- augment(fit_deterministic)$.innov
+
+fit_deterministic %>% 
+  augment() %>% 
+  features(.innov, unitroot_kpss)
+
+ggtsdisplay(Residuals, 
+            plot.type = "histogram", 
+            lag.max = 24,
+            theme = theme_bw(),
+            main = paste("Residuals of ARIMA ", fit_deterministic$Deterministic))
+
+fc_deterministic %>% 
+  autoplot(unemployment_test_ts, level = 95) +
+  labs(title = "Deterministic forecast",
+       x = "Month",
+       y = "Unemployment level") +
+  theme_bw() +
+  theme(legend.position = "bottom") + 
+  guides(level = guide_legend(title = "Prediction level"))
+
+
+
+
+
+
+
 
 
 ########################################################################
