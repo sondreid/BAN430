@@ -55,12 +55,23 @@ multivariate_data  %>%
   features(difference(export), unitroot_kpss)
 
 # Export: Autocorrelation plots after difference
-ggtsdisplay(difference(multivariate_data$export), 
+
+diff_ex <- diff(diff((multivariate_data$export)))
+diff_cpi <- diff(diff((multivariate_data$cpi)))
+diff_unemp <- diff((multivariate_data$unemployed)) 
+
+unitroot_kpss(diff_ex)
+unitroot_kpss(diff_cpi)
+unitroot_kpss(diff_unemp)
+
+ggtsdisplay(diff(diff((multivariate_data %>% filter(year(date) < 2016))$export )), 
             plot.type = "partial", 
             lag.max = 24, 
             theme = theme_bw(),
             main = "Differenced Export")
 
+
+Box.test(diff(diff(diff(multivariate_data$export))), lag=10, type="Ljung-Box")
 
 
 ################################################################################
@@ -102,7 +113,7 @@ forecast_level <- fc_multivariate_var %>%
 # AICc and BIC optimized forecast, VAR(5) and VAR(1)           
 forecast_level  %>% 
   autoplot() +
-  autolayer(unemployment_test_ts) +
+  autolayer(unemployment_test_ts %>% filter(year(date) > 2007)) +
   theme_bw() +
   theme(legend.position = "bottom") +
   labs(y = "Unemployment level",
@@ -146,14 +157,14 @@ data.frame(Model = "Multivariate VAR model AICc optimized",
             Type = "Test", 
             RMSE = RMSE(var_aicc_resid),
             MAE =  MAE(var_aicc_resid),
-            MAPE = MAPE(.resid = var_aicc_resid, .actual = c(unemployment_test$unemployed)),
-            MASE = MASE(.resid = var_aicc_resid, .train = c(unemployment_train_ts$unemployed), .period = 12),
+            MAPE = fabletools::MAPE(.resid = var_aicc_resid, .actual = c(unemployment_test$unemployed)),
+            MASE =  MASE(.resid = var_aicc_resid, .train = c(unemployment_train_ts$unemployed), .period = 12),
             RMSSE = RMSSE(.resid = var_aicc_resid, .train = c(unemployment_train_ts$unemployed), .period = 12)) %>% 
     bind_rows( data.frame(Model = "Multivariate VAR model BIC optimized", 
             Type = "Test", 
             RMSE = RMSE(var_bic_resid),
             MAE =  MAE(var_bic_resid),
-            MAPE = MAPE(var_bic_resid),
+            MAPE = fabletools:: MAPE(.resid = var_bic_resid, .actual = c(unemployment_test$unemployed)),
             MASE = MASE(.resid = var_bic_resid, .train = c(unemployment_train_ts$unemployed), .period = 12),
             RMSSE = RMSSE(.resid = var_bic_resid, .train = c(unemployment_train_ts$unemployed), .period = 12)))%>% 
     kbl(caption = "Multivariate VAR models", digits = 2) %>%
@@ -168,50 +179,64 @@ data.frame(Model = "Multivariate VAR model AICc optimized",
 #################################################################################################
 "Cointegrated stochastic trends --> VECM"
 VARselect(multivariate_data[,2:4], lag.max =24, type="const")[["selection"]] # Confirming AR term
+
+
+unemployment_exports <- multivariate_data  %>%  dplyr::select(unemployed, cpi)
+
+
+VARselect(unemployment_exports[,1:2], lag.max =24, type="const")[["selection"]] # Confirming AR term
 # Johansen test
 ### Identify cointegration between variables
-unemployment_exports <- multivariate_data  %>%  dplyr::select(unemployed, export)
 
+ca_jo_eigen <- ca.jo(unemployment_exports[,1:2], ecdet = "const", type = "trace",
+               K = 13, spec = "longrun") ## k = 5 AR terms
+
+              
 ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = "trace",
                K = 13, spec = "longrun", season = 1) ## k = 5 AR terms
 summary(ca_jo)
-ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = "eigen",
-               K = 13, spec = "longrun"1) ## k = 5 AR terms
-
-summary(ca_jo)
-summary(cajorls(ca_jo, r=1)$rlm)
-
-vecm_seas_constant <- gen_vec(data = ts(multivariate_data[,2:4]),
-                              p = 5, r = 1)
-
-VECM_model_var_5 <- VECM(multivariate_data[,2:4], lag = 3, r = 1, exogen = vecm_seas_constant, estim = "ML")
 
 
 var_vec <- vec2var(ca_jo, r =1)
-summary(var_vec)
-serial.test(var_vec, lags.pt=24, type="PT.asymptotic")
 
+serial.test(var_vec, lags.pt=10, type="PT.asymptotic")
 
 
 fc_vecm <- predict(var_vec, n.ahead = 24)
-fc_var_vec <- tsibble("date"= unemployment_test$date,
+fc_var_vec <- data.frame("date"= unemployment_test$date,
                       "unemployed" = (predict(var_vec, n.ahead = 24)[[1]]$unemployed)[,1:3])
 colnames(fc_var_vec) <- c("date", "unemployed", "lower", "upper")
 
 
-vecm_resids <- (unemployment_test$unemployed - fc_var_vec$unemployed[,1])
-MASE(.resid = vecm_resids , .train = c(unemployment_train_ts$unemployed), .period = 12)
-
 
 fc_var_vec  %>% 
     ggplot() +
-    geom_line(aes(x = date, y = unemployed[,"fcst"], color = "VECM model")) +
-    geom_line(aes(x = date, y = unemployed, color = "Observed unemployment"), data = unemployment_test_ts) +
-    theme_bw() +
+    geom_line(aes(x = date, y = unemployed, color = "VECM model")) +
+    geom_line(aes(x = date, y = unemployed, color = "Observed unemployment"), data = unemployment_test_ts) +   
     geom_line(aes(x = date, y = unemployed[,"lower"], color = "Lower prediction interval", alpha = 0.5)) + 
     geom_line(aes(x = date, y = unemployed[,"upper"], color = "Upper prediction interval", alpha = 0.5)) +
     scale_colour_manual(values=c("#eb3434", "black", "#56B4E9", "#56B4E9")) 
+    theme_bw() +
+#Performance metrics
 
+
+vecm_resids <- (unemployment_test$unemployed - fc_var_vec$unemployed[,1])
+data.frame(Model = "Multivariate VAR model AICc optimized (AR5)", 
+            Type = "Test", 
+            RMSE = RMSE(var_aicc_resid),
+            MAE =  MAE(var_aicc_resid),
+            MAPE = fabletools::MAPE(.resid = var_aicc_resid, .actual = c(unemployment_test$unemployed)),
+            MASE =  MASE(.resid = var_aicc_resid, .train = c(unemployment_train_ts$unemployed), .period = 12),
+            RMSSE = RMSSE(.resid = var_aicc_resid, .train = c(unemployment_train_ts$unemployed), .period = 12)) %>% 
+    bind_rows( data.frame(Model = "Multivariate VECM model AR(13)", 
+            Type = "Test", 
+            RMSE = RMSE(vecm_resids),
+            MAE =  MAE(vecm_resids),
+            MAPE = fabletools:: MAPE(.resid = vecm_resids, .actual = c(unemployment_test$unemployed)),
+            MASE = MASE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12),
+            RMSSE = RMSSE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12)))%>% 
+    kbl(caption = "Multivariate VAR models", digits = 2) %>%
+    kable_classic(full_width = F, html_font = "Times new roman")
 
 
 ###################################################################################################
