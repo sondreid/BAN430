@@ -5,7 +5,7 @@
 #setwd("/Users/olaiviken/Documents/BAN430/BAN430/Script")
 #setwd("G:/Dokumenter/Google drive folder/NHH/Master/BAN430/Repository/Script")
 # Sourcing data from data.r 
-
+source("data.r")
 
 " Average of best three models "
 load(file = "../Data/optimal_models.Rdata")

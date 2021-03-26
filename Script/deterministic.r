@@ -34,13 +34,41 @@ fc_deterministic %>%
 ####### SPLINES #######
 
 
-splines_deterministic <- splinef(unemployment_train_ts$unemployed, h  = 24) %>% plot()
+splines_deterministic <- splinef(unemployment_train_ts$unemployed, h  = 24)
 
 
 ###### FOURIER ######
 
-fourier(ts(unemployment_train_ts$unemployed), K = 1, h  = 24)
+fourier <- fourier(ts(unemployment_train_ts$unemployed, frequency =  12), K = 2, h  = 24)
 
+
+
+fit_fourier <- unemployment_train_ts  %>% 
+    dplyr::select(date, unemployed)   %>% 
+    model(Fourier_k1 = ARIMA(unemployed ~ fourier(K = 1) + PDQ(0,0,0)),
+          Fourier_k2 = ARIMA(unemployed ~ fourier(K = 2) + PDQ(0,0,0)),
+          Fourier_k3 = ARIMA(unemployed ~ fourier(K = 3) + PDQ(0,0,0)),
+          Fourier_k4 = ARIMA(unemployed ~ fourier(K = 4) + PDQ(0,0,0)),
+          Fourier_k5 = ARIMA(unemployed ~ fourier(K = 5) + PDQ(0,0,0)),
+          Fourier_k6 = ARIMA(unemployed ~ fourier(K = 6) + PDQ(0,0,0)))
+
+
+
+fit_fourier  %>% glance()  %>% arrange(AICc)
+
+
+
+fc_fourier <- fit_fourier %>% 
+    forecast(h = 24)
+    
+    
+fc_fourier%>% 
+    autoplot(unemployment_test_ts  %>% filter(year(date) >= 2010), level = 95) +
+    facet_wrap(vars(.model), ncol = 2) +
+    theme_bw()
+    
+
+fc_fourier %>% accuracy(unemployment_test_ts)  %>%  arrange(MASE)
 
 
 ###### COMPARISONS#################
