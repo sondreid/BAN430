@@ -123,10 +123,10 @@ VARselect(multivariate_data_stationary[,2:4], lag.max =24, type="const")[["selec
 var1 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 1, type="const")
 var2 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 2, type="const")
 var5 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 5, type="const")
-var20 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 20, type="const")
+var13 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 13, type="const")
 
 "Failed portmanteau test: Set of autocorrelation tests most likely ljung box test for several variables"
-serial_port_test <- (serial.test(var20, lags.pt=24, type="PT.asymptotic"))$serial
+serial_port_test <- (serial.test(var13, lags.pt=24, type="PT.asymptotic"))$serial
 data.frame("Chi-squared" = serial_port_test[1],
            "df"         = serial_port_test[2],
            "p.value"    = serial_port_test[3]) %>% kbl()
@@ -140,20 +140,22 @@ forecast(object= var2, h = 24) %>%
 aicc <- forecast_level %>% filter(.model == "VAR_aicc")
 bic <- forecast_level %>% filter(.model == "VAR_bic")
 
+var_aicc_resid <- c(unemployment_test$unemployed- aicc$diff_unemployed)
+var_bic_resid  <- c(unemployment_test$unemployed- bic$diff_unemployed)
 data.frame(Model = "Multivariate VAR model AICc optimized", 
             Type = "Test", 
-            RMSE = RMSE(unemployment_test$unemployed, aicc$diff_unemployed),
-            MAE =  MAE(unemployment_test$unemployed, aicc$diff_unemployed),
-            MAPE = MAPE(unemployment_test$unemployed, aicc$diff_unemployed),
-            MASE = MASE(unemployment_test$unemployed, aicc$diff_unemployed, .period = 12),
-            RMSSE = RMSSE(unemployment_test$unemployed, aicc$diff_unemployed, .period = 12)) %>% 
+            RMSE = RMSE(var_aicc_resid),
+            MAE =  MAE(var_aicc_resid),
+            MAPE = MAPE(.resid = var_aicc_resid, .actual = c(unemployment_test$unemployed)),
+            MASE = MASE(.resid = var_aicc_resid, .train = c(unemployment_train_ts$unemployed), .period = 12),
+            RMSSE = RMSSE(.resid = var_aicc_resid, .train = c(unemployment_train_ts$unemployed), .period = 12)) %>% 
     bind_rows( data.frame(Model = "Multivariate VAR model BIC optimized", 
             Type = "Test", 
-            RMSE = RMSE(unemployment_test$unemployed, bic$diff_unemployed),
-            MAE =  MAE(unemployment_test$unemployed, bic$diff_unemployed),
-            MAPE = MAPE(unemployment_test$unemployed, bic$diff_unemployed),
-            MASE = MASE(unemployment_test$unemployed, bic$diff_unemployed, .period = 12),
-            RMSSE = RMSSE(unemployment_test$unemployed, bic$diff_unemployed, .period = 12))) %>% 
+            RMSE = RMSE(var_bic_resid),
+            MAE =  MAE(var_bic_resid),
+            MAPE = MAPE(var_bic_resid),
+            MASE = MASE(.resid = var_bic_resid, .train = c(unemployment_train_ts$unemployed), .period = 12),
+            RMSSE = RMSSE(.resid = var_bic_resid, .train = c(unemployment_train_ts$unemployed), .period = 12)))%>% 
     kbl(caption = "Multivariate VAR models", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
@@ -165,13 +167,17 @@ data.frame(Model = "Multivariate VAR model AICc optimized",
 ############################## Multivariate foorecast with VECM #################################
 #################################################################################################
 "Cointegrated stochastic trends --> VECM"
-
+VARselect(multivariate_data[,2:4], lag.max =24, type="const")[["selection"]] # Confirming AR term
 # Johansen test
 ### Identify cointegration between variables
-ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = c("eigen", "trace"),
-               K = 5, spec = "longrun") ## k = 5 AR terms
+ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = "trace",
+               K = 13) ## k = 5 AR terms
+summary(ca_jo)
+ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = "eigen",
+               K = 13) #
 
 summary(ca_jo)
+summary(cajorls(ca_jo, r=1)$rlm)
 
 vecm_seas_constant <- gen_vec(data = ts(multivariate_data[,2:4]),
                               p = 5, r = 1)
@@ -190,7 +196,9 @@ fc_var_vec <- tsibble("date"= unemployment_test$date,
                       "unemployed" = (predict(var_vec, n.ahead = 24)[[1]]$unemployed)[,1:3])
 colnames(fc_var_vec) <- c("date", "unemployed", "lower", "upper")
 
-MASE(fc_var_vec$unemployed[,"fcst"], unemployment_test$unemployed, .period = 12)
+
+vecm_resids <- (unemployment_test$unemployed - fc_var_vec$unemployed[,1])
+MASE(.resid = vecm_resids , .train = c(unemployment_train_ts$unemployed), .period = 12)
 
 
 fc_var_vec  %>% 
