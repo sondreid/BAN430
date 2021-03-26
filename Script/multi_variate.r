@@ -37,7 +37,7 @@ multivariate_data  %>%
 
 # CPI: KPSS test. Outcome: 10% p-value, no need for further differencing
 multivariate_data  %>% 
-  features(difference(cpi), unitroot_kpss)
+  features(export, unitroot_kpss)
 
 # CPI: Autocorrelation plots after difference
 ggtsdisplay(difference(multivariate_data$cpi), 
@@ -64,14 +64,6 @@ unitroot_kpss(diff_ex)
 unitroot_kpss(diff_cpi)
 unitroot_kpss(diff_unemp)
 
-ggtsdisplay(diff(diff((multivariate_data %>% filter(year(date) < 2016))$export )), 
-            plot.type = "partial", 
-            lag.max = 24, 
-            theme = theme_bw(),
-            main = "Differenced Export")
-
-
-Box.test(diff(diff(diff(multivariate_data$export))), lag=10, type="Ljung-Box")
 
 
 ################################################################################
@@ -79,15 +71,15 @@ Box.test(diff(diff(diff(multivariate_data$export))), lag=10, type="Ljung-Box")
 ################################################################################
 
 multivariate_data_stationary <- multivariate_data  %>% 
-    mutate(diff_diff_seasonal_unemployed = difference(difference(unemployed, lag = 12)),
-           diff_export                   = difference(export),
-           diff_cpi                      = difference(cpi))  %>% 
-    dplyr::select(date, diff_diff_seasonal_unemployed, diff_export, diff_cpi)  %>% 
+    mutate(diff_unemployed = difference(difference(unemployed)),
+           diff_diff_export                   = difference(difference(export)),
+           diff_diff_cpi                      = difference(difference(cpi)))  %>% 
+    dplyr::select(date, diff_unemployed, diff_diff_export, diff_diff_cpi)  %>% 
     as_tsibble()  
     
  multivariate_data_stationary   %<>% 
-    filter(date > yearmonth("2001-01-01"))
-
+    filter(date > yearmonth("2000-02-01"))
+ 
 
 ##################################################################################
 ########### Multivariate forecast with stationary data: VAR ######################
@@ -95,8 +87,8 @@ multivariate_data_stationary <- multivariate_data  %>%
 
 # VAR: optimal model by AICc and BIC
 fit_multivariate_var <- multivariate_data_stationary %>% 
-  model(VAR_aicc = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export), ic = "aicc"),
-        VAR_bic = fable::VAR(vars(diff_diff_seasonal_unemployed , diff_cpi, diff_export), ic = "bic"))
+  model(VAR_aicc = fable::VAR(vars(diff_unemployed , diff_diff_cpi, diff_diff_export), ic = "aicc"),
+        VAR_bic = fable::VAR(vars(diff_unemployed , diff_diff_cpi, diff_diff_export), ic = "bic"))
 
 # VAR: forecasts
 fc_multivariate_var <- fit_multivariate_var  %>% 
@@ -105,8 +97,8 @@ fc_multivariate_var <- fit_multivariate_var  %>%
 
 # VAR: forecast adjusted with level
 forecast_level <- fc_multivariate_var %>% 
-  dplyr::select(".mean_diff_diff_seasonal_unemployed")  %>% 
-  rename(diff_unemployed = ".mean_diff_diff_seasonal_unemployed")  %>% 
+  dplyr::select(".mean_diff_unemployed")  %>% 
+  rename(diff_unemployed = ".mean_diff_unemployed")  %>% 
   group_by(.model)  %>% 
   mutate(diff_unemployed = cumsum(diff_unemployed) +  multivariate_data$unemployed %>% tail(1)) ## Add level
 
@@ -137,10 +129,7 @@ var5 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 5, type="const")
 var13 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 13, type="const")
 
 "Failed portmanteau test: Set of autocorrelation tests most likely ljung box test for several variables"
-serial_port_test <- (serial.test(var13, lags.pt=24, type="PT.asymptotic"))$serial
-data.frame("Chi-squared" = serial_port_test[1],
-           "df"         = serial_port_test[2],
-           "p.value"    = serial_port_test[3]) %>% kbl()
+serial.test(var5, lags.pt=24, type="PT.asymptotic")
 
 
 forecast(object= var2, h = 24) %>%
@@ -173,26 +162,21 @@ data.frame(Model = "Multivariate VAR model AICc optimized",
 
 
 
-
 #################################################################################################
 ############################## Multivariate foorecast with VECM #################################
 #################################################################################################
 "Cointegrated stochastic trends --> VECM"
-VARselect(multivariate_data[,2:4], type="const")[["selection"]] # Confirming AR term
-
+VARselect(multivariate_data[,2:4], lag.max = 12, type="const")[["selection"]] # Confirming AR term
 
 # Johansen test
 ### Identify cointegration between variables
-ca_jo <- ca.jo(multivariate_data[,2:4], type = "trace",
-               K = 10, season = 1) ## k = 5 AR terms
+ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = "trace",
+               K = 10, season = 12  ) ## k = 5 AR terms
 
 summary(ca_jo)
 
 
 var_vec <- vec2var(ca_jo, r =1)
-
-serial.test(var_vec, lags.pt=24, type="PT.asymptotic")
-
 
 fc_vecm <- predict(var_vec, n.ahead = 24)
 fc_var_vec <- data.frame("date"= unemployment_test$date,
@@ -204,11 +188,12 @@ colnames(fc_var_vec) <- c("date", "unemployed", "lower", "upper")
 fc_var_vec  %>% 
     ggplot() +
     geom_line(aes(x = date, y = unemployed, color = "VECM model")) +
-    geom_line(aes(x = date, y = unemployed, color = "Observed unemployment"), data = unemployment_test_ts) +   
-    geom_line(aes(x = date, y = lower, color = "Lower prediction interval", alpha = 0.5)) + 
-    geom_line(aes(x = date, y = upper, color = "Upper prediction interval", alpha = 0.5)) +
-    scale_colour_manual(values=c("#eb3434", "black", "#56B4E9", "#56B4E9")) +
-    theme_bw() 
+    geom_line(aes(x = date, y = unemployed, color = "Observed unemployment"), data = unemployment_test_ts %>% filter(year(date) > 2007)) +   
+    #geom_line(aes(x = date, y = lower, color = "Lower prediction interval", alpha = 0.5)) + 
+    #geom_line(aes(x = date, y = upper, color = "Upper prediction interval", alpha = 0.5)) +
+    scale_colour_manual(values=c("black", "orange")) +
+    theme_bw() + 
+    theme(legend.position = "bottom") 
 #Performance metrics
 
 
@@ -226,7 +211,14 @@ data.frame(Model = "Multivariate VAR model AICc optimized (AR5)",
             MAE =  MAE(vecm_resids),
             MAPE = fabletools:: MAPE(.resid = vecm_resids, .actual = c(unemployment_test$unemployed)),
             MASE = MASE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12),
-            RMSSE = RMSSE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12))) %>%
+            RMSSE = RMSSE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12)),
+            data.frame(Model = "Multivariate VAR model BIC optimized", 
+                       Type = "Test", 
+                       RMSE = RMSE(var_bic_resid),
+                       MAE =  MAE(var_bic_resid),
+                       MAPE = fabletools:: MAPE(.resid = var_bic_resid, .actual = c(unemployment_test$unemployed)),
+                       MASE = MASE(.resid = var_bic_resid, .train = c(unemployment_train_ts$unemployed), .period = 12),
+                       RMSSE = RMSSE(.resid = var_bic_resid, .train = c(unemployment_train_ts$unemployed), .period = 12))) %>%
     arrange(MASE) %>% 
     kbl(caption = "Multivariate VAR models", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
