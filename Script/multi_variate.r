@@ -178,28 +178,20 @@ data.frame(Model = "Multivariate VAR model AICc optimized",
 ############################## Multivariate foorecast with VECM #################################
 #################################################################################################
 "Cointegrated stochastic trends --> VECM"
-VARselect(multivariate_data[,2:4], lag.max =24, type="const")[["selection"]] # Confirming AR term
+VARselect(multivariate_data[,2:4], type="const")[["selection"]] # Confirming AR term
 
 
-unemployment_exports <- multivariate_data  %>%  dplyr::select(unemployed, cpi)
-
-
-VARselect(unemployment_exports[,1:2], lag.max =24, type="const")[["selection"]] # Confirming AR term
 # Johansen test
 ### Identify cointegration between variables
+ca_jo <- ca.jo(multivariate_data[,2:4], type = "trace",
+               K = 10, season = 1) ## k = 5 AR terms
 
-ca_jo_eigen <- ca.jo(unemployment_exports[,1:2], ecdet = "const", type = "trace",
-               K = 13, spec = "longrun") ## k = 5 AR terms
-
-              
-ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = "trace",
-               K = 13, spec = "longrun", season = 1) ## k = 5 AR terms
 summary(ca_jo)
 
 
 var_vec <- vec2var(ca_jo, r =1)
 
-serial.test(var_vec, lags.pt=10, type="PT.asymptotic")
+serial.test(var_vec, lags.pt=24, type="PT.asymptotic")
 
 
 fc_vecm <- predict(var_vec, n.ahead = 24)
@@ -213,14 +205,14 @@ fc_var_vec  %>%
     ggplot() +
     geom_line(aes(x = date, y = unemployed, color = "VECM model")) +
     geom_line(aes(x = date, y = unemployed, color = "Observed unemployment"), data = unemployment_test_ts) +   
-    geom_line(aes(x = date, y = unemployed[,"lower"], color = "Lower prediction interval", alpha = 0.5)) + 
-    geom_line(aes(x = date, y = unemployed[,"upper"], color = "Upper prediction interval", alpha = 0.5)) +
-    scale_colour_manual(values=c("#eb3434", "black", "#56B4E9", "#56B4E9")) 
-    theme_bw() +
+    geom_line(aes(x = date, y = lower, color = "Lower prediction interval", alpha = 0.5)) + 
+    geom_line(aes(x = date, y = upper, color = "Upper prediction interval", alpha = 0.5)) +
+    scale_colour_manual(values=c("#eb3434", "black", "#56B4E9", "#56B4E9")) +
+    theme_bw() 
 #Performance metrics
 
 
-vecm_resids <- (unemployment_test$unemployed - fc_var_vec$unemployed[,1])
+vecm_resids <- (unemployment_test$unemployed - fc_var_vec$unemployed)
 data.frame(Model = "Multivariate VAR model AICc optimized (AR5)", 
             Type = "Test", 
             RMSE = RMSE(var_aicc_resid),
@@ -228,13 +220,14 @@ data.frame(Model = "Multivariate VAR model AICc optimized (AR5)",
             MAPE = fabletools::MAPE(.resid = var_aicc_resid, .actual = c(unemployment_test$unemployed)),
             MASE =  MASE(.resid = var_aicc_resid, .train = c(unemployment_train_ts$unemployed), .period = 12),
             RMSSE = RMSSE(.resid = var_aicc_resid, .train = c(unemployment_train_ts$unemployed), .period = 12)) %>% 
-    bind_rows( data.frame(Model = "Multivariate VECM model AR(13)", 
+    bind_rows( data.frame(Model = "Multivariate VECM model AR(10)", 
             Type = "Test", 
             RMSE = RMSE(vecm_resids),
             MAE =  MAE(vecm_resids),
             MAPE = fabletools:: MAPE(.resid = vecm_resids, .actual = c(unemployment_test$unemployed)),
             MASE = MASE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12),
-            RMSSE = RMSSE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12)))%>% 
+            RMSSE = RMSSE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12))) %>%
+    arrange(MASE) %>% 
     kbl(caption = "Multivariate VAR models", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
