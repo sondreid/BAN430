@@ -170,11 +170,13 @@ data.frame(Model = "Multivariate VAR model AICc optimized",
 VARselect(multivariate_data[,2:4], lag.max =24, type="const")[["selection"]] # Confirming AR term
 # Johansen test
 ### Identify cointegration between variables
+unemployment_exports <- multivariate_data  %>%  dplyr::select(unemployed, export)
+
 ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = "trace",
-               K = 13) ## k = 5 AR terms
+               K = 13, spec = "longrun", season = 1) ## k = 5 AR terms
 summary(ca_jo)
 ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = "eigen",
-               K = 13) #
+               K = 13, spec = "longrun"1) ## k = 5 AR terms
 
 summary(ca_jo)
 summary(cajorls(ca_jo, r=1)$rlm)
@@ -188,7 +190,7 @@ VECM_model_var_5 <- VECM(multivariate_data[,2:4], lag = 3, r = 1, exogen = vecm_
 var_vec <- vec2var(ca_jo, r =1)
 summary(var_vec)
 serial.test(var_vec, lags.pt=24, type="PT.asymptotic")
-plot(predict(var_vec, n.ahead = 24))
+
 
 
 fc_vecm <- predict(var_vec, n.ahead = 24)
@@ -205,8 +207,10 @@ fc_var_vec  %>%
     ggplot() +
     geom_line(aes(x = date, y = unemployed[,"fcst"], color = "VECM model")) +
     geom_line(aes(x = date, y = unemployed, color = "Observed unemployment"), data = unemployment_test_ts) +
-    geom_line(aes(x = date, y = unemployed[,"lower"], color = "Lower")) + 
-    geom_line(aes(x = date, y = unemployed[,"upper"], color = "Upper")) 
+    theme_bw() +
+    geom_line(aes(x = date, y = unemployed[,"lower"], color = "Lower prediction interval", alpha = 0.5)) + 
+    geom_line(aes(x = date, y = unemployed[,"upper"], color = "Upper prediction interval", alpha = 0.5)) +
+    scale_colour_manual(values=c("#eb3434", "black", "#56B4E9", "#56B4E9")) 
 
 
 
