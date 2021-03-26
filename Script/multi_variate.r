@@ -299,7 +299,7 @@ fc_dynamic_arima_forecastobject <- forecast(fit_dynamic_arima,
 fc_dynamic_arima <- forecast(fit_dynamic_arima,
                              new_data = fc_predictors_arima) %>% 
   mutate(Model = c("Predictor ARIMA")) %>% 
-  as_tibble()
+  as_tibble(index = date)
 
 # Plot: Forecast of Unemployment level with forecasted predictors using ARIMA method
 # fc_dynamic_arima %>% 
@@ -331,7 +331,8 @@ fc_dynamic_naive_forecastobject <- forecast(fit_dynamic_arima,
 fc_dynamic_naive <- forecast(fit_dynamic_arima, 
                              new_data = fc_predictors_naive)  %>% 
   mutate(Model = c("Predictor NAIVE")) %>% 
-  as_tibble()
+  as_tibble(index = date)
+
   
 
 # Plot: Forecast of Unemployment level with forecasted predictors using NAIVE method
@@ -347,15 +348,15 @@ fc_dynamic_naive <- forecast(fit_dynamic_arima,
 #        x = "Month") +
 #   guides(colour = guide_legend(title = "Series"))
 
-# Forecast ARIMA model with ARIMA and NAIVE forecasted predictors cpi and export
 fc_dynamic <- bind_rows(
-                        fc_dynamic_naive,
-                        fc_dynamic_arima)
+                        fc_dynamic_arima,
+                        fc_dynamic_naive)
 
+# Forecast of ARIMA model with ARIMA and NAIVE forecasted predictors
 fc_dynamic %>% 
   ggplot() +
   geom_line(aes(x = date, y  = .mean, color = Model)) +
-  geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment) +
+  geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment_test_ts) +
   theme_bw() +
   scale_colour_manual(values=c("black", "#56B4E9", "orange")) +
   theme(legend.position = "bottom") +
@@ -363,6 +364,20 @@ fc_dynamic %>%
        y = "Unemployment level",
        x = "Month") +
   guides(colour = guide_legend(title = "Series"))
+
+
+# Plot with prediciton interval 95%
+unemployment_test_ts %>% 
+  autoplot() +
+  autolayer(fc_dynamic_arima_forecastobject, colour = "blue", level = 95, alpha = 0.5) +
+  autolayer(fc_dynamic_naive_forecastobject, colour = "orange", level = 95, alpha = 0.2) +
+  theme_bw() +
+  scale_colour_manual(values=c("black", "#56B4E9", "orange")) +
+  theme(legend.position = "bottom") +
+  labs(title = "Dynamic forecast",
+       y = "Unemployment level",
+       x = "Month") 
+
 
 # Forecast: accuracy
 bind_rows(
