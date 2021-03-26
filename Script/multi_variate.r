@@ -361,6 +361,7 @@ fc_dynamic %>%
   scale_colour_manual(values=c("black", "#56B4E9", "orange")) +
   theme(legend.position = "bottom") +
   labs(title = "Dynamic forecast",
+       subtitle = fit_dynamic_arima$`ARIMA(unemployed ~ cpi + export, stepwise = FALSE, approximation = FALSE)`,
        y = "Unemployment level",
        x = "Month") +
   guides(colour = guide_legend(title = "Series"))
