@@ -25,15 +25,23 @@ generate_y <- function(fit, n) {
     #' 
     #' Returns vector of residuals + random component
     sigma <- sd(residuals(fit)$.resid)
+    resids <- residuals(fit)$.resid
     mean_resid <- mean(residuals(fit)$.resid)
     ar_terms <- arima_fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ar")) # AR terms and their coefficients
+    ma_terms <- arima_fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ma")) # AR terms and their coefficients
     p <- ar_terms %>%  nrow() # AR term number
-    y <- rnorm(n, mean = mean_resid, sd = sigma/sqrt(n))
+    m <- ma_terms  %>%  nrow()
+    y <- rnorm(n, mean = mean(unemployment_ts$unemployed), sd = sigma/sqrt(n))
     for (i in (p+2):n) {
         #y[i] <- y[i] +  y[i-1] 
         if (p > 0 ) {
             for(j in 1:p) {
                 y[i] <- y[i] + (y[i-j] - y[i-j-1]) * ar_terms$estimate[j]
+            }
+        }
+        if( m > 0 && i > 12*m) {
+            for(k in 1:m) {
+                y[i] <- y[i] + (resids[i-12*k] * ma_terms$estimate[k])
             }
         }
      }
@@ -44,9 +52,9 @@ generate_y(arima_fit, 216)
 plot(generate_y(arima_fit, 216), type = "l")
 
 y_avg <- rep(0,n)
-simulate <- function(R = 100, train_length = 216, h = 24) {
+simulate <- function(R = 10000, train_length = 216, h = 24) {
     res <- matrix(0,2,1)
-    colnames(res) <- c("RMSE")
+    colnames(res) <- c("MSE")
     rownames(res)<- c("VAR multivariate", "ARIMA yt")
     for(i in 1:R){
         y <- generate_y(arima_fit, train_length+h)
@@ -56,7 +64,7 @@ simulate <- function(R = 100, train_length = 216, h = 24) {
         x <- c()
         x[1] <- 0
         for (j in 2:(train_length+h)) {
-            x[j] <- 0.5*y[j-1] + 0.5*x[j-1]
+            x[j] <- 0.5*y[j-1] + 0.5*x[j-1] 
         }
         x_e <- x[1:train_length]
         x_t <- x[(train_length+1):(train_length+h)]
@@ -78,7 +86,11 @@ simulate <- function(R = 100, train_length = 216, h = 24) {
     }
     return(res)
 }
-simulate()
+sim_res <- simulate()
+
+sim_res  %>% 
+  kbl(caption = "Metrics of Monte Carlo simulated forecasts on generated data", digits = 2) %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
 
 
 
@@ -114,7 +126,13 @@ test$k
 
 
 
+set.seed(12345)
+library(urca)
+library(tsDyn)
+library(mvtnorm)
+data(finland)
 fit <- VECM(finland, lag=2, estim="ML", r=1)
+genx <- function(fit,n){
 sigma <- cov(fit$residuals)
 k <- fit$k
 p <- fit$lag
@@ -130,7 +148,7 @@ IPI <- diag(k)
 b <- 10
 x <- rmvnorm(n+b, mean = rep(0, nrow(sigma)), sigma = sigma)
 for(i in (p+2):(n+b)){
-x[i,] <- x[i,]+ fit$coefficients[,r+1]+x[i-1,]%*%t(IPI) 
+x[i,] <- x[i,]+ fit$coefficients[,r+1]+x[i-1,]%*%t(IPI)
 if(p>0){
 for(j in 1:p){
 x[i,] <- x[i,]+ (x[i-j,]-x[i-j-1,])%*%t(fit$coefficients[,(r+2+k*(j-1)):(r+1+k*j)])
@@ -139,6 +157,7 @@ x[i,] <- x[i,]+ (x[i-j,]-x[i-j-1,])%*%t(fit$coefficients[,(r+2+k*(j-1)):(r+1+k*j
 }
 x <- x[(b+1):(b+n),]
 return(x)
+}
 
 
-
+genx(fit, 200)
