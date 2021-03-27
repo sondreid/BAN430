@@ -15,16 +15,16 @@ unemployment_ts <- unemployment %>% as_tsibble(index = date)
 arima_fit <- unemployment_ts  %>% 
     model(arima_optimal = ARIMA(unemployed, stepwise = FALSE, approximation = FALSE))
 
-geny <- function(fit, n) {
+generate_y <- function(fit, n) {
     #' 
     #' Returns vector of residuals + random component
     sigma <- sd(residuals(arima_fit)$.resid)
     mean_resid <- mean(residuals(arima_fit)$.resid)
-    y <- rnorm(n, mean = mean_resid, sd = sigma)
     ar_terms <- arima_fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ar")) # AR terms and their coefficients
     p <- ar_terms %>%  nrow() # AR term number
-     for (i in 2:(n)) {
-        y[i] = y[i] +  y[i-1] 
+    y <- rnorm(n, mean = mean_resid, sd = sigma)
+    for (i in (p+2):n) {
+        y[i] <- y[i] +  y[i-1] 
         if (p > 0 ) {
             for(j in 1:p) {
                 y[i] <- y[i] + (y[i-j] - y[i-j-1]) * ar_terms$estimate[j]
@@ -33,33 +33,49 @@ geny <- function(fit, n) {
      }
     return (y)
 }
+generate_y(arima_fit, 216)
 
 
-R <- 100
-h <- 24
-n_e <- 216
-n_t <- 24
-res <- matrix(0,2,2)
-colnames(res) <- c("Model", "RMSE")
-res[,1] <- c("VAR multivariate", "ARIMA yt")
-for(i in 1:R){
-    y <- geny(arima_fit, n_e+n_t)
-    y_e <- y[1:n_e]
-    y_t <- y[n_e+1:n_e+n_t]
-    x <- c()
-    x[1] <- 0
-    for (j in 2:n_e) {
-         x[j] <- 0.5*y[j-1] + 0.5*x[j-1]
+simulate <- function(R = 10000, train_length = 216, h = 24) {
+    res <- matrix(0,2,1)
+    colnames(res) <- c("RMSE")
+    rownames(res)<- c("VAR multivariate", "ARIMA yt")
+    for(i in 1:R){
+        y <- generate_y(arima_fit, train_length+h)
+        y_e <- y[1:train_length]
+        y_t <- y[(train_length+1):(train_length+h)]
+        x <- c()
+        x[1] <- 0
+        for (j in 2:(train_length+h)) {
+            x[j] <- 0.5*y[j-1] + 0.5*x[j-1]
+        }
+        x_e <- x[1:train_length]
+        x_t <- x[(train_length+1):(train_length+h)]
+        data_x_y = data.frame(date = unemployment_train_ts$date, x_e = x_e, y_e = y_e)  %>%  as_tsibble(index = date)
+        ar_term <- VARselect(data_x_y[,2:3], lag.max =10, type="const")[["selection"]] # Confirming AR term
+        var_multi  <- vars:: VAR(data_x_y[,2:3], p  = ar_term[[2]])
+        #var_multi <- data_x_y %>% model(var_multi = fable::VAR(vars(y_e, x_e) ~ AR(p = 0:5)))
+        # print(paste("y_t", y_t))
+        # print(paste("y_e", y_e))
+        # print(y_t- predict(var_multi, n.ahead = 24)$fcst$y_e)
+        if (any(is.na(predict(var_multi, n.ahead = 24)$fcst$y_e))) { 
+            next
+        }
+        else {
+            res[1] <- res[1] + (y_t -  predict(var_multi, n.ahead = 24)$fcst$y_e)[,1]^2/R
+            arima_uni <- data_x_y  %>% model(Arima = ARIMA(y_e, stepwise = TRUE, approximation = TRUE))
+            res[2] <- res[2] + (y_t -  predict(arima_uni)$.mean)^2/R
+        }
     }
-    x_e <- x[1:n_e]
-    x_t <- x[n_e+1:n_e+n_t]
-    data_x_y = data.frame(date = unemployment_train_ts$date, x_e = x_e, y_e = y_e)  %>%  as_tsibble(index = date)
-    ar_term <- VARselect(data_x_y[,2:3], lag.max =24, type="const")[["selection"]] # Confirming AR term
-    var_multi  <- vars:: VAR(data_x_y[,2:3], p  = ar_term[[2]])
-    res[1,1] <- res[1,1] + ((y_t - predict(var_multi, n.ahead = n_t)^2)/R)
-    arima_uni <- data_x_y  %>% model(Arima = ARIMA(y_e, stepwise = FALSE, approximation = FALSE))
-    
+    return(res)
 }
+simulate()
+
+
+
+
+
+
 
 
 
@@ -116,11 +132,4 @@ x <- x[(b+1):(b+n),]
 return(x)
 
 
-
-
-
-
-# Generate y
-
-S0 <- 
 
