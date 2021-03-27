@@ -15,16 +15,22 @@ unemployment_ts <- unemployment %>% as_tsibble(index = date)
 arima_fit <- unemployment_ts  %>% 
     model(arima_optimal = ARIMA(unemployed, stepwise = FALSE, approximation = FALSE))
 
+arima_fit  %>% forecast(h=24)  %>% autoplot() + autolayer(unemployment_ts)
+
+gg_tsresiduals(arima_fit)
+
+n <- 240
+fit <- arima_fit
 generate_y <- function(fit, n) {
     #' 
     #' Returns vector of residuals + random component
-    sigma <- sd(residuals(arima_fit)$.resid)
-    mean_resid <- mean(residuals(arima_fit)$.resid)
+    sigma <- sd(residuals(fit)$.resid)
+    mean_resid <- mean(residuals(fit)$.resid)
     ar_terms <- arima_fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ar")) # AR terms and their coefficients
     p <- ar_terms %>%  nrow() # AR term number
-    y <- rnorm(n, mean = mean_resid, sd = sigma)
+    y <- rnorm(n, mean = mean_resid, sd = sigma/sqrt(n))
     for (i in (p+2):n) {
-        y[i] <- y[i] +  y[i-1] 
+        #y[i] <- y[i] +  y[i-1] 
         if (p > 0 ) {
             for(j in 1:p) {
                 y[i] <- y[i] + (y[i-j] - y[i-j-1]) * ar_terms$estimate[j]
@@ -35,8 +41,10 @@ generate_y <- function(fit, n) {
 }
 generate_y(arima_fit, 216)
 
+plot(generate_y(arima_fit, 216), type = "l")
 
-simulate <- function(R = 10000, train_length = 216, h = 24) {
+y_avg <- rep(0,n)
+simulate <- function(R = 100, train_length = 216, h = 24) {
     res <- matrix(0,2,1)
     colnames(res) <- c("RMSE")
     rownames(res)<- c("VAR multivariate", "ARIMA yt")
@@ -44,6 +52,7 @@ simulate <- function(R = 10000, train_length = 216, h = 24) {
         y <- generate_y(arima_fit, train_length+h)
         y_e <- y[1:train_length]
         y_t <- y[(train_length+1):(train_length+h)]
+        y_avg <- y_avg + y/R
         x <- c()
         x[1] <- 0
         for (j in 2:(train_length+h)) {
