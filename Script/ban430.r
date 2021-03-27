@@ -553,6 +553,12 @@ unemployment_train_ts_stationarity %>%
 #save(fit_arima_optimal, file = "../Data/arima_optimal.Rdata")
 load("../Data/arima_optimal.Rdata")
 
+coefficients(fit_arima_optimal)$estimate
+reportfit_arima_optimal
+
+
+r <- report(fit_arima_optimal)
+r
 
 arima_manual_fits <- unemployment_train_ts %>% 
     dplyr::select(date, unemployed) %>% 

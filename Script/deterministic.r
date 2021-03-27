@@ -8,7 +8,7 @@ source("data.r")
 
 fit_deterministic <- unemployment_train_ts %>% 
   dplyr::select(date, unemployed) %>% 
-  model(Deterministic = ARIMA(unemployed ~ 1 + trend() + pdq(d=0) + PDQ(d = 0))
+  model(Deterministic = ARIMA(unemployed ~ 1 + trend() + pdq(d=0) + PDQ(d = 0)))
 
 fc_deterministic <- fit_deterministic %>% 
   forecast(h = 24)
