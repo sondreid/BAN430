@@ -15,41 +15,44 @@ unemployment_ts <- unemployment %>% as_tsibble(index = date)
 arima_fit <- unemployment_ts  %>% 
     model(arima_optimal = ARIMA(unemployed, stepwise = FALSE, approximation = FALSE))
 
-geny <- function(fit, n, b = 24) {
+geny <- function(fit, n) {
     #' 
+    #' Returns vector of residuals + random component
     sigma <- sd(residuals(arima_fit)$.resid)
     mean_resid <- mean(residuals(arima_fit)$.resid)
     y <- rnorm(n, mean = mean_resid, sd = sigma)
-    for (i in 2:(n+b)) {
-        y[,i] = y[,i] + y[,i-1] 
-    }
-    return (y)
-    plot(y, type = "l")
-
-    y <- augment(arima_fit)$.fitted
-    plot(y, type = "l")
-
-
-    return(lines(cumsum(x), type = "l"))
+    # for (i in 2:(n)) {
+    #     y[i] = y[i] +  y[i-1]  
+    # }
+    return (cumsum(y))
 }
 
 
+geny(arima_fit, 240)
+
 R <- 100
 h <- 24
-n <- 240
+n_e <- 216
+n_t <- 24
 res <- matrix(0,2,2)
 colnames(res) <- c("Model", "RMSE")
 res[,1] <- c("VAR multivariate", "ARIMA yt")
 for(i in 1:R){
-    y <- geny(arima_fit, n + h)
+    y <- geny(arima_fit, n_e+n_t)
+    y_e <- y[1:n_e]
+    y_t <- y[n_e+1:n_e+n_t]
+    x <- c()
     x[1] <- 0
-    for (j in 1:R) {
-         x[j] <- 0.5*y[j] + 0.5*x[j-1]
+    for (j in 2:n_e) {
+         x[j] <- 0.5*y[j-1] + 0.5*x[j-1]
     }
-    x <- rt(n, df =v)
-    var_multi_model <- model(var_xt = fable::VAR(vars(y, x), ic = "bic"))
-    #### Forecast
-    # res[1,2] <- forecast_error
+    x_e <- x[1:n_e]
+    x_t <- x[n_e+1:n_e+n_t]
+    data_x_y = data.frame(date = unemployment_train_ts$date, x = x_e, y = y_e)  %>%  as_tsibble(index = date)
+    ar_term <- VARselect(data_x_y[,2:3], lag.max =24, type="const")[["selection"]] # Confirming AR term
+    var1  <- vars:: VAR(data_x_y[,2:3], p  = ar_term[[2]])
+    res[1,1] <- res[1,1] + ((y_t - predict(var1, n.ahead = n_t)^2)/R)
+    
 }
 
 
@@ -114,3 +117,4 @@ return(x)
 # Generate y
 
 S0 <- 
+
