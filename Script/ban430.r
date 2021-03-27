@@ -553,6 +553,8 @@ unemployment_train_ts_stationarity %>%
 #save(fit_arima_optimal, file = "../Data/arima_optimal.Rdata")
 load("../Data/arima_optimal.Rdata")
 
+
+
 coefficients(fit_arima_optimal)$estimate
 reportfit_arima_optimal
 
@@ -687,5 +689,5 @@ accuracy_models <- bind_rows(
 accuracy_models
 
 
-save(fc_arima_optimal, fc_ets_optimal, file = "../Data/optimal_models.Rdata")
+save(fit_ets_optimal, fc_arima_optimal, fc_ets_optimal, file = "../Data/optimal_models.Rdata")
 
