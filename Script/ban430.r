@@ -46,7 +46,7 @@ unemployment_train  %>%
         "25%-percentil" = quantile(unemployed, 0.25),
         Mean = mean(unemployed),
         Median = median(unemployed),
-        "75%-percentil" = quantile(unemployed, 0.75),
+        "75%entil" = quantile(unemployed, 0.75),
         Max = max(unemployed)) %>% 
     kbl(caption = "Summary statistics of unemployment level in US") %>%
     kable_classic(full_width = F, html_font = "Times new roman")

@@ -21,14 +21,19 @@ geny <- function(fit, n) {
     sigma <- sd(residuals(arima_fit)$.resid)
     mean_resid <- mean(residuals(arima_fit)$.resid)
     y <- rnorm(n, mean = mean_resid, sd = sigma)
-    # for (i in 2:(n)) {
-    #     y[i] = y[i] +  y[i-1]  
-    # }
-    return (cumsum(y))
+    ar_terms <- arima_fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ar")) # AR terms and their coefficients
+    p <- ar_terms %>%  nrow() # AR term number
+     for (i in 2:(n)) {
+        y[i] = y[i] +  y[i-1] 
+        if (p > 0 ) {
+            for(j in 1:p) {
+                y[i] <- y[i] + (y[i-j] - y[i-j-1]) * ar_terms$estimate[j]
+            }
+        }
+     }
+    return (y)
 }
 
-
-geny(arima_fit, 240)
 
 R <- 100
 h <- 24
@@ -48,10 +53,11 @@ for(i in 1:R){
     }
     x_e <- x[1:n_e]
     x_t <- x[n_e+1:n_e+n_t]
-    data_x_y = data.frame(date = unemployment_train_ts$date, x = x_e, y = y_e)  %>%  as_tsibble(index = date)
+    data_x_y = data.frame(date = unemployment_train_ts$date, x_e = x_e, y_e = y_e)  %>%  as_tsibble(index = date)
     ar_term <- VARselect(data_x_y[,2:3], lag.max =24, type="const")[["selection"]] # Confirming AR term
-    var1  <- vars:: VAR(data_x_y[,2:3], p  = ar_term[[2]])
-    res[1,1] <- res[1,1] + ((y_t - predict(var1, n.ahead = n_t)^2)/R)
+    var_multi  <- vars:: VAR(data_x_y[,2:3], p  = ar_term[[2]])
+    res[1,1] <- res[1,1] + ((y_t - predict(var_multi, n.ahead = n_t)^2)/R)
+    arima_uni <- data_x_y  %>% model(Arima = ARIMA(y_e, stepwise = FALSE, approximation = FALSE))
     
 }
 
@@ -99,7 +105,7 @@ IPI <- diag(k)
 b <- 10
 x <- rmvnorm(n+b, mean = rep(0, nrow(sigma)), sigma = sigma)
 for(i in (p+2):(n+b)){
-x[i,] <- x[i,]+ fit$coefficients[,r+1]+x[i-1,]%*%t(IPI) }
+x[i,] <- x[i,]+ fit$coefficients[,r+1]+x[i-1,]%*%t(IPI) 
 if(p>0){
 for(j in 1:p){
 x[i,] <- x[i,]+ (x[i-j,]-x[i-j-1,])%*%t(fit$coefficients[,(r+2+k*(j-1)):(r+1+k*j)])
