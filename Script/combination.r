@@ -90,8 +90,9 @@ comb_mse_fc  %>%
   theme(legend.position = "bottom")
 
 
-
-
+#############################################################################################################
+############# RESTEN ER BARE TULLLLLL#################################################
+###########################################################################################################
 
 # Advanced combination method: difference in standard deviation
 sd_fc_arima_optimal <- sd(fc_arima_optimal$.mean)

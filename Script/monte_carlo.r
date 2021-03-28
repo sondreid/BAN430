@@ -15,45 +15,88 @@ unemployment_ts <- unemployment %>% as_tsibble(index = date)
 arima_fit <- unemployment_ts  %>% 
     model(arima_optimal = ARIMA(unemployed, stepwise = FALSE, approximation = FALSE))
 
-geny <- function(fit, n) {
+arima_fit  %>% forecast(h=24)  %>% autoplot() + autolayer(unemployment_ts)
+
+gg_tsresiduals(arima_fit)
+
+n <- 240
+fit <- arima_fit
+generate_y <- function(fit, n) {
     #' 
     #' Returns vector of residuals + random component
-    sigma <- sd(residuals(arima_fit)$.resid)
-    mean_resid <- mean(residuals(arima_fit)$.resid)
-    y <- rnorm(n, mean = mean_resid, sd = sigma)
-    # for (i in 2:(n)) {
-    #     y[i] = y[i] +  y[i-1]  
-    # }
-    return (cumsum(y))
+    sigma <- sd(residuals(fit)$.resid)
+    resids <- residuals(fit)$.resid
+    mean_resid <- mean(residuals(fit)$.resid)
+    ar_terms <- arima_fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ar")) # AR terms and their coefficients
+    ma_terms <- arima_fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ma")) # AR terms and their coefficients
+    p <- ar_terms %>%  nrow() # AR term number
+    m <- ma_terms  %>%  nrow()
+    y <- rnorm(n, mean = mean(unemployment_ts$unemployed), sd = sigma/sqrt(n))
+    for (i in (p+2):n) {
+        #y[i] <- y[i] +  y[i-1] 
+        if (p > 0 ) {
+            for(j in 1:p) {
+                y[i] <- y[i] + (y[i-j] - y[i-j-1]) * ar_terms$estimate[j]
+            }
+        }
+        if( m > 0 && i > 12*m) {
+            for(k in 1:m) {
+                y[i] <- y[i] + (resids[i-12*k] * ma_terms$estimate[k])
+            }
+        }
+     }
+    return (y)
 }
+generate_y(arima_fit, 216)
 
+plot(generate_y(arima_fit, 216), type = "l")
 
-geny(arima_fit, 240)
-
-R <- 100
-h <- 24
-n_e <- 216
-n_t <- 24
-res <- matrix(0,2,2)
-colnames(res) <- c("Model", "RMSE")
-res[,1] <- c("VAR multivariate", "ARIMA yt")
-for(i in 1:R){
-    y <- geny(arima_fit, n_e+n_t)
-    y_e <- y[1:n_e]
-    y_t <- y[n_e+1:n_e+n_t]
-    x <- c()
-    x[1] <- 0
-    for (j in 2:n_e) {
-         x[j] <- 0.5*y[j-1] + 0.5*x[j-1]
+y_avg <- rep(0,n)
+simulate <- function(R = 10000, train_length = 216, h = 24) {
+    res <- matrix(0,2,1)
+    colnames(res) <- c("MSE")
+    rownames(res)<- c("VAR multivariate", "ARIMA yt")
+    for(i in 1:R){
+        y <- generate_y(arima_fit, train_length+h)
+        y_e <- y[1:train_length]
+        y_t <- y[(train_length+1):(train_length+h)]
+        y_avg <- y_avg + y/R
+        x <- c()
+        x[1] <- 0
+        for (j in 2:(train_length+h)) {
+            x[j] <- 0.5*y[j-1] + 0.5*x[j-1] 
+        }
+        x_e <- x[1:train_length]
+        x_t <- x[(train_length+1):(train_length+h)]
+        data_x_y = data.frame(date = unemployment_train_ts$date, x_e = x_e, y_e = y_e)  %>%  as_tsibble(index = date)
+        ar_term <- VARselect(data_x_y[,2:3], lag.max =10, type="const")[["selection"]] # Confirming AR term
+        var_multi  <- vars:: VAR(data_x_y[,2:3], p  = ar_term[[2]])
+        #var_multi <- data_x_y %>% model(var_multi = fable::VAR(vars(y_e, x_e) ~ AR(p = 0:5)))
+        # print(paste("y_t", y_t))
+        # print(paste("y_e", y_e))
+        # print(y_t- predict(var_multi, n.ahead = 24)$fcst$y_e)
+        if (any(is.na(predict(var_multi, n.ahead = 24)$fcst$y_e))) { 
+            next
+        }
+        else {
+            res[1] <- res[1] + (y_t -  predict(var_multi, n.ahead = 24)$fcst$y_e)[,1]^2/R
+            arima_uni <- data_x_y  %>% model(Arima = ARIMA(y_e, stepwise = TRUE, approximation = TRUE))
+            res[2] <- res[2] + (y_t -  predict(arima_uni)$.mean)^2/R
+        }
     }
-    x_e <- x[1:n_e]
-    x_t <- x[n_e+1:n_e+n_t]
-    data_x_y = data.frame(date = unemployment_train_ts$date, x = x_e, y = y_e)  %>%  as_tsibble(index = date)
-    ar_term <- VARselect(data_x_y[,2:3], lag.max =24, type="const")[["selection"]] # Confirming AR term
-    var1  <- vars:: VAR(data_x_y[,2:3], p  = ar_term[[2]])
-    res[1,1] <- res[1,1] + ((y_t - predict(var1, n.ahead = n_t)^2)/R)
-    
+    return(res)
 }
+sim_res <- simulate()
+
+sim_res  %>% 
+  kbl(caption = "Metrics of Monte Carlo simulated forecasts on generated data", digits = 2) %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+
+
+
+
+
 
 
 
@@ -83,7 +126,13 @@ test$k
 
 
 
+set.seed(12345)
+library(urca)
+library(tsDyn)
+library(mvtnorm)
+data(finland)
 fit <- VECM(finland, lag=2, estim="ML", r=1)
+genx <- function(fit,n){
 sigma <- cov(fit$residuals)
 k <- fit$k
 p <- fit$lag
@@ -99,7 +148,7 @@ IPI <- diag(k)
 b <- 10
 x <- rmvnorm(n+b, mean = rep(0, nrow(sigma)), sigma = sigma)
 for(i in (p+2):(n+b)){
-x[i,] <- x[i,]+ fit$coefficients[,r+1]+x[i-1,]%*%t(IPI) }
+x[i,] <- x[i,]+ fit$coefficients[,r+1]+x[i-1,]%*%t(IPI)
 if(p>0){
 for(j in 1:p){
 x[i,] <- x[i,]+ (x[i-j,]-x[i-j-1,])%*%t(fit$coefficients[,(r+2+k*(j-1)):(r+1+k*j)])
@@ -108,13 +157,7 @@ x[i,] <- x[i,]+ (x[i-j,]-x[i-j-1,])%*%t(fit$coefficients[,(r+2+k*(j-1)):(r+1+k*j
 }
 x <- x[(b+1):(b+n),]
 return(x)
+}
 
 
-
-
-
-
-# Generate y
-
-S0 <- 
-
+genx(fit, 200)
