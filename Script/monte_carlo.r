@@ -21,7 +21,7 @@ gg_tsresiduals(arima_fit)
 
 n <- 240
 fit <- arima_fit
-generate_y <- function(fit, n) {
+generate_y <- function(fit, n, d = 1) {
     #' 
     #' Returns vector of residuals + random component
     sigma <- sd(residuals(fit)$.resid)
@@ -31,8 +31,13 @@ generate_y <- function(fit, n) {
     ma_terms <- arima_fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ma")) # AR terms and their coefficients
     p <- ar_terms %>%  nrow() # AR term number
     m <- ma_terms  %>%  nrow()
-    y <- rnorm(n, mean = mean(unemployment_ts$unemployed), sd = sigma/sqrt(n))
+    y <- rnorm(n, mean = mean(unemployment_ts$unemployed), sd = (sigma/sqrt(n)))
     for (i in (p+2):n) {
+        if (d > 0) {
+            for (f in 1:d ) {
+                y <- diff(y)
+            }
+        }
         #y[i] <- y[i] +  y[i-1] 
         if (p > 0 ) {
             for(j in 1:p) {
@@ -47,7 +52,7 @@ generate_y <- function(fit, n) {
      }
     return (y)
 }
-generate_y(arima_fit, 216)
+generate_y(arima_fit, 216, 1)
 
 plot(generate_y(arima_fit, 216), type = "l")
 
