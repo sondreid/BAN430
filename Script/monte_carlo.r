@@ -9,7 +9,7 @@ source("data.r")
 
 load(file = "../Data/optimal_models.Rdata")
 
-set.seed(12345)
+
 
 unemployment_ts <- unemployment %>% as_tsibble(index = date)
 arima_fit <- unemployment_ts  %>% 
@@ -19,9 +19,10 @@ arima_fit  %>% forecast(h=24)  %>% autoplot() + autolayer(unemployment_ts)
 
 gg_tsresiduals(arima_fit)
 
+set.seed(12345)
 n <- 240
 fit <- arima_fit
-generate_y <- function(fit, n, d = 1) {
+generate_y <- function(fit, n, d = 1, sd = 1) {
     #' 
     #' Returns vector of residuals + random component
     sigma <- sd(residuals(fit)$.resid)
@@ -32,12 +33,17 @@ generate_y <- function(fit, n, d = 1) {
     p <- ar_terms %>%  nrow() # AR term number
     m <- ma_terms  %>%  nrow()
     y <- rnorm(n, mean = mean(unemployment_ts$unemployed), sd = (sigma/sqrt(n)))
+    # if (d > 0 && i > 1) {
+    #     for (f in 1:d ) {
+    #             y <- difference(y)
+    #         }
+    #     }
+    # if (sd > 0 && i > 12) {
+    #     for (b in 1:sd ) {
+    #             y <- difference(y, lag = 12)
+    #         }
+    #     }
     for (i in (p+2):n) {
-        if (d > 0) {
-            for (f in 1:d ) {
-                y <- diff(y)
-            }
-        }
         #y[i] <- y[i] +  y[i-1] 
         if (p > 0 ) {
             for(j in 1:p) {
@@ -55,17 +61,35 @@ generate_y <- function(fit, n, d = 1) {
 generate_y(arima_fit, 216, 1)
 
 plot(generate_y(arima_fit, 216), type = "l")
+library(foreach)
 
-y_avg <- rep(0,n)
-simulate <- function(R = 10000, train_length = 216, h = 24) {
+
+determineTrainTest <- function(h = 24, maxlength = 19) {
+        num_h <- sample(1:19, 1)*12
+        train <- num_h - 24
+        train_range <- c((1:train))
+        test_range <-  c((train+1):num_h)
+        return(c(train_range, test_range))
+}
+determineTrainTest()
+
+
+simulate <- function(R = 100, train_length = 216, h = 24) {
+    cl <- parallel::makeCluster(8)                                                                                         ### Make clusters
+    doParallel::registerDoParallel(cl)
     res <- matrix(0,2,1)
     colnames(res) <- c("MSE")
     rownames(res)<- c("VAR multivariate", "ARIMA yt")
     for(i in 1:R){
+        num_h <- sample(1:19, 1)*12
+        train <- num_h - 24
+        train_range <- c((1:train))
+        test_range <-  c((train+1):num_h)
+
+
         y <- generate_y(arima_fit, train_length+h)
         y_e <- y[1:train_length]
         y_t <- y[(train_length+1):(train_length+h)]
-        y_avg <- y_avg + y/R
         x <- c()
         x[1] <- 0
         for (j in 2:(train_length+h)) {
@@ -89,8 +113,10 @@ simulate <- function(R = 10000, train_length = 216, h = 24) {
             res[2] <- res[2] + (y_t -  predict(arima_uni)$.mean)^2/R
         }
     }
+    parallel::stopCluster(cl)
     return(res)
 }
+
 sim_res <- simulate()
 
 sim_res  %>% 
