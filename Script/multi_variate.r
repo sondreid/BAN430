@@ -289,8 +289,8 @@ fit_export  %>%
   kable_classic(full_width = F, html_font = "Times new roman")
 
 # ARIMA optimized model by reducing AICc
-# fit_dynamic_arima <- multivariate_data %>% 
-#   model(ARIMA(unemployed ~ cpi + export, stepwise = FALSE, approximation = FALSE))
+# fit_dynamic_arima <- multivariate_data %>%
+#   model(ARIMA_dynamic = ARIMA(unemployed ~ cpi + export, stepwise = FALSE, approximation = FALSE))
 
 #save(fit_dynamic_arima, file = "../Data/fit_dynamic_arima.Rdata")
 load("../Data/fit_dynamic_arima.Rdata")
@@ -347,7 +347,10 @@ fc_dynamic_naive <- forecast(fit_dynamic_arima,
   mutate(Model = c("Predictor NAIVE")) %>% 
   as_tibble(index = date)
 
-  
+
+save(fc_dynamic_naive, file = "../Data/fit_dynamic_arima.Rdata")
+
+
 
 # Plot: Forecast of Unemployment level with forecasted predictors using NAIVE method
 # fc_dynamic_naive %>% 
