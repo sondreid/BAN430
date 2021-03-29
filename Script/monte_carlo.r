@@ -3,7 +3,7 @@
 ########################################################################
 
 #setwd("/Users/olaiviken/Documents/BAN430/BAN430/Script")
-#setwd("G:/Dokumenter/Google drive folder/NHH/Master/BAN430/Repository/Script")
+setwd("G:/Dokumenter/Google drive folder/NHH/Master/BAN430/Repository/Script")
 # Sourcing data from data.r 
 source("data.r")
 
@@ -12,38 +12,27 @@ load(file = "../Data/optimal_models.Rdata")
 
 
 unemployment_ts <- unemployment %>% as_tsibble(index = date)
-arima_fit <- unemployment_ts  %>% 
-    model(arima_optimal = ARIMA(unemployed, stepwise = FALSE, approximation = FALSE))
 
-arima_fit  %>% forecast(h=24)  %>% autoplot() + autolayer(unemployment_ts)
 
-gg_tsresiduals(arima_fit)
 
 set.seed(12345)
-n <- 240
-fit <- arima_fit
-generate_y <- function(fit, n, d = 1, sd = 1) {
+
+
+generate_y <- function(fit, n, diff = 1, seas_diff = 1) {
     #' 
     #' 
     sigma <- sd(residuals(fit)$.resid)
     resids <- residuals(fit)$.resid
     mean_resid <- mean(residuals(fit)$.resid)
-    ar_terms <- arima_fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ar")) # AR terms and their coefficients
-    ma_terms <- arima_fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ma")) # AR terms and their coefficients
+    ar_terms <- fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ar")) # AR terms and their coefficients
+    ma_terms <- fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ma")) # AR terms and their coefficients
     p <- ar_terms %>%  nrow() # AR term number
     m <- ma_terms  %>%  nrow()
-    y <- rnorm(n, mean = mean(unemployment_ts$unemployed), sd = (sigma/sqrt(n)))
-    # if (d > 0 && i > 1) {
-    #     for (f in 1:d ) {
-    #             y <- difference(y)
-    #         }
-    #     }
-    # if (sd > 0 && i > 12) {
-    #     for (b in 1:sd ) {
-    #             y <- difference(y, lag = 12)
-    #         }
-    #     }
-    for (i in (p+2):n) {
+    b <- 10                                                    # Burn ins
+    y <- rnorm(n+b, mean = mean(unemployment_ts$unemployed), sd = sigma)
+    #y <- rnorm(n+b, mean = mean(unemployment_ts$unemployed), sd = (sigma/sqrt(n)))
+
+    for (i in (p+2):(n+b)) {
         #y[i] <- y[i] +  y[i-1] 
         if (p > 0 ) {
             for(j in 1:p) {
@@ -58,65 +47,107 @@ generate_y <- function(fit, n, d = 1, sd = 1) {
      }
     return (y)
 }
-generate_y(arima_fit, 216, 1)
 
-plot(generate_y(arima_fit, 216), type = "l")
-
-
-
-determineTrainTest <- function(h = 24, maxlength = 19) {
-        num_h <- sample(1:19, 1)*12
-        train <- num_h - 24
-        train_range <- c((1:train))
-        test_range <-  c((train+1):num_h)
-        return(c(train_range, test_range))
-}
-determineTrainTest()
+testfit  <- unemployment_ts %>%                                     
+            model(arima_optimal = ARIMA(unemployed, stepwise = TRUE, approximation = TRUE))
+generate_y(testfit, 216, 1)
+plot(generate_y(testfit, 216, 1))
 
 
-simulate <- function(R = 1, h = 24) {
-    cl <- parallel::makeCluster(8)                                                                                         ### Make clusters
-    doParallel::registerDoParallel(cl)
-    res <- matrix(0,2,1)
-    colnames(res) <- c("MSE")
-    rownames(res)<- c("VAR multivariate", "ARIMA yt")
+
+
+
+'
+train_length <- 216
+h <- 24
+R <- 10
+fit <- testfit'
+
+simulate <- function(fit, R, train_length , h ) {
+
+    res <- matrix(0,2,3)
+    colnames(res) <- c("RMSE", "MASE", "MAE", "MAPE",  "RMSSE")
+    rownames(res) <- c("VAR multivariate", "ARIMA yt")
     for(i in 1:R){
-        sample <- (sample(6:19, 1))*12                                                                                    ### Change sample size
-        train_length <- sample - h                                                                                         ### Set length of training set
-        train_range <- c((1:train_length))
-        test_range <-  c((train_length+1):sample)
-        y <- generate_y(arima_fit, sample)
-        y_e <- y[train_range]
-        y_t <- y[test_range]
+        y <- generate_y(fit, train_length+h)
+        y_e <- y[1:train_length]
+        y_t <- y[(train_length+1):(train_length+h)]
         x <- c()
-        x[1] <- 0
+        x[1] <- y[1]
         for (j in 2:(train_length+h)) {
             x[j] <- 0.5*y[j-1] + 0.5*x[j-1] 
         }
-        x_e <- x[train_range]
-        x_t <- x[test_range]
-        data_x_y = data.frame(num = train_range, x_e = x_e, y_e = y_e)  %>%  as_tsibble(index = num)
-        ar_term <- VARselect(data_x_y[,2:3], lag.max =10, type="const")[["selection"]]                                    ### Find optimal AR term
-        var_multi  <- vars:: VAR(data_x_y[,2:3], p  = ar_term[[2]])
-        if (any(is.na(predict(var_multi, n.ahead = 24)$fcst$y_e))) { 
+        x_e <- x[1:train_length]
+        x_t <- x[(train_length+1):(train_length+h)]
+        data_x_y = data.frame(date = (1:train_length), x_e = x_e, y_e = y_e)  %>%  as_tsibble(index = date)
+        ar_term <- VARselect(data_x_y[,2:3], lag.max =10, type="const")[["selection"]][[2]]            # Confirming AR term
+        var_multi  <- vars:: VAR(data_x_y[,2:3], p  = 1,  type = "const")
+        if (any(is.na(predict(var_multi, n.ahead = h)$fcst$y_e))) { 
             next
         }
         else {
-            res[1] <- res[1] + (y_t -  predict(var_multi, n.ahead = 24)$fcst$y_e)[,1]^2/R
-            arima_uni <- data_x_y  %>% model(Arima = ARIMA(y_e, stepwise = TRUE, approximation = TRUE))
-            res[2] <- res[2] + (y_t -  predict(arima_uni)$.mean)^2/R
+            arima_uni <- data_x_y  %>% model(Arima = ARIMA(y_e, stepwise = FALSE, approximation = FALSE))
+            #arima_uni <- data_x_y  %>% model(Arima =  ARIMA(y_e ~ pdq(1,0,0) + PDQ(0,0,0)))
+            var_resids <-   y_t -  predict(var_multi, n.ahead = h)$fcst$y_e[,1]
+            arima_resids <- y_t -  (arima_uni %>% forecast(h = h))$.mean
+            res[1,1] <- res[1,1] + RMSE(var_resids)/R     
+            res[2,1] <- res[2,1] + RMSE(arima_resids)/R  
+
+            res[1,2] <- res[1,2] + MASE(.resid = var_resids, .train = y_e, .period = 12)/R   
+            res[2,2] <- res[2,2] + MASE(.resid = arima_resids, .train = y_e, .period = 12)/R   
         }
     }
-    parallel::stopCluster(cl)
+    
     return(res)
 }
-simulate()
-sim_res <- simulate()
+simulate(testfit, R = 1, train_length = 160, h = 40)
+
+
+wrapperSim <- function(R, sample_length, test_ratio) {
+        cl <- parallel::makeCluster(parallel::detectCores())                                                                                         ### Make clusters
+        doParallel::registerDoParallel(cl)
+        train_length <- floor(sample_length * (1-test_ratio))
+        h <- ceiling(sample_length* test_ratio)
+        print(train_length)
+        print(h)
+        arima_fit <- unemployment_ts[1:(train_length+h),]  %>%                                     
+            model(arima_optimal = ARIMA(unemployed, stepwise = TRUE, approximation = TRUE))
+        sim_res <- simulate(arima_fit, R, train_length, h)
+        parallel::stopCluster(cl)
+        return(sim_res)
+}
+
+simres  <- wrapperSim(R= 10000, sample_length = 240, test_ratio = 0.1)
+simres
+
+
+
 
 sim_res  %>% 
   kbl(caption = "Metrics of Monte Carlo simulated forecasts on generated data", digits = 2) %>%
   kable_classic(full_width = F, html_font = "Times new roman")
 
+
+
+library(forecast)
+mydata.arima505 <- arima(unemployment_train_ts$unemployed, order=c(5,0,5))
+future_y <- simulate(mydata.arima505, 1)
+
+
+
+
+library(forecast)
+# True Data Generating Process
+y <- arima.sim(model=list(ar=0.4, ma = 0.5, order =c(1,0,1)), n=100)
+
+#Fit an Model arima model
+fit <- auto.arima(y)
+
+#Use the estimaes for a simulation 
+arima.sim(list(ar = fit$coef["ar1"], ma = fit$coef["ma1"]), n = 50)
+
+#Use the model to make predictions
+prediced_values <- predict(fit, n.ahead = 50)
 
 
 
