@@ -179,6 +179,7 @@ summary(ca_jo)
 
 var_vec <- vec2var(ca_jo, r =1)
 
+################# VECM forecast ###############
 fc_vecm <- predict(var_vec, n.ahead = 24)
 fc_var_vec <- data.frame("date"= unemployment_test$date,
                       "unemployed" = (predict(var_vec, n.ahead = 24)[[1]]$unemployed)[,1:3])
@@ -190,13 +191,14 @@ fc_var_vec  %>%
     ggplot() +
     geom_line(aes(x = date, y = unemployed, color = "VECM model")) +
     geom_line(aes(x = date, y = unemployed, color = "Observed unemployment"), data = unemployment_test_ts %>% filter(year(date) > 2007)) +   
+    geom_ribbon(aes(x = date, ymin = lower, ymax = upper), alpha = 0.15, colour = "orange") + 
     #geom_line(aes(x = date, y = lower, color = "Lower prediction interval", alpha = 0.5)) + 
     #geom_line(aes(x = date, y = upper, color = "Upper prediction interval", alpha = 0.5)) +
     scale_colour_manual(values=c("black", "orange")) +
     theme_bw() + 
     theme(legend.position = "bottom") 
-#Performance metrics
 
+#################Performance metrics table ###############
 
 vecm_resids <- (unemployment_test$unemployed - fc_var_vec$unemployed)
 data.frame(Model = "Multivariate VAR model AICc optimized (AR5)", 

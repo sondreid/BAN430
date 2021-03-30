@@ -25,10 +25,10 @@ generate_y <- function(fit, n, diff = 1, seas_diff = 1) {
     resids <- residuals(fit)$.resid
     mean_resid <- mean(residuals(fit)$.resid)
     ar_terms <- fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ar")) # AR terms and their coefficients
-    ma_terms <- fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ma")) # AR terms and their coefficients
-    p <- ar_terms %>%  nrow() # AR term number
-    m <- ma_terms  %>%  nrow()
-    b <- 10                                                    # Burn ins
+    ma_terms <- fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ma")) # MA terms and their coefficients
+    p <- ar_terms %>%  nrow()                                                                                # AR term number
+    m <- ma_terms  %>%  nrow()                                                                               # MA term number
+    b <- 10                                                                                                  # Burn-ins
     y <- rnorm(n+b, mean = mean(unemployment_ts$unemployed), sd = sigma)
     #y <- rnorm(n+b, mean = mean(unemployment_ts$unemployed), sd = (sigma/sqrt(n)))
 
@@ -114,93 +114,44 @@ simulate <- function(fit, R, train_length , h ) {
 #simulate(testfit, R = 1, train_length = 160, h = 40)
 
 
-wrapperSim <- function(R, sample_length, test_ratio) {
+wrapperSim <- function(R, sample_size, test_ratio) {
+        #' Wrapper function that splits the unemployment series into
+        #' test and training lengths based on an input sample length and
+        #' test ratio of the overall series length.
+        #' Passes this as parameters to the simulate function
         cl <- parallel::makeCluster(parallel::detectCores())                                                                                         ### Make clusters
         doParallel::registerDoParallel(cl)
-        train_length <- floor(sample_length * (1-test_ratio))
-        h <- ceiling(sample_length* test_ratio)
+        train_length <- floor(sample_size * (1-test_ratio))
+        h <- ceiling(sample_size* test_ratio)
         print(train_length)
         print(h)
-        start <- (nrow(unemployment_ts) - sample_length)
+        start <- (nrow(unemployment_ts) - sample_size)
         arima_fit <- unemployment_ts[start:(nrow(unemployment_ts)), ]  %>%                                     
             model(arima_optimal = ARIMA(unemployed, stepwise = FALSE, approximation = FALSE))
-        sim_res <- simulate(arima_fit, R, train_length, h)
+        sim_res <- simulate(arima_fit, R, train_length, h) %>%
+          as.data.frame() %>% 
+          mutate("Sample length" = sample_size)
         parallel::stopCluster(cl)
+        
         return(sim_res)
 }
 
-simres  <- wrapperSim(R= 1000, sample_length = 240, test_ratio = 0.2)
+simres  <- wrapperSim(R= 1000, sample_size = 240, test_ratio = 0.2)
 simres
 
 
+sample_sizes <- c(100, 150, 200, 240)
 
-
-simres  %>% 
-       kable(caption = "Monte Carlo simulation: Sample size: 200. Testratio: 20 %", label = "test", digits = 2) %>%
-       kable_classic(full_width = F, html_font = "Times new roman") %>% 
-  save_kable("../Plots/test.png")
-
-
-save(sim_res  %>% 
-  kbl(caption = "Metrics of Monte Carlo simulated forecasts on generated data", digits = 2) %>%
-  kable_classic(full_width = F, html_font = "Times new roman"), file = "../Plots/sim_1000_240_0.1.html")
-
-
-
-library(forecast)
-mydata.arima505 <- arima(unemployment_train_ts$unemployed, order=c(5,0,5))
-future_y <- simulate(mydata.arima505, 1)
-
-
-
-
-library(forecast)
-# True Data Generating Process
-y <- arima.sim(model=list(ar=0.4, ma = 0.5, order =c(1,0,1)), n=100)
-
-#Fit an Model arima model
-fit <- auto.arima(y)
-
-#Use the estimaes for a simulation 
-arima.sim(list(ar = fit$coef["ar1"], ma = fit$coef["ma1"]), n = 50)
-
-#Use the model to make predictions
-prediced_values <- predict(fit, n.ahead = 50)
-
-
-
-set.seed(12345)
-library(urca)
-library(tsDyn)
-library(mvtnorm)
-data(finland)
-fit <- VECM(finland, lag=2, estim="ML", r=1)
-genx <- function(fit,n){
-sigma <- cov(fit$residuals)
-k <- fit$k
-p <- fit$lag
-r <- fit$model.specific$r
-if(r>0){
-beta <- fit$model.specific$beta
-alpha <- fit$coefficients[,1:r]
-IPI <- diag(k)+alpha%*%t(beta)
-}else{
-IPI <- diag(k)
+table <- data.frame()
+for (size in sample_sizes) {
+  table <- table %>% rbind(., wrapperSim(R= 1000, sample_size = size, test_ratio = 0.2))
 }
-# Number of burn in obs...
-b <- 10
-x <- rmvnorm(n+b, mean = rep(0, nrow(sigma)), sigma = sigma)
-for(i in (p+2):(n+b)){
-x[i,] <- x[i,]+ fit$coefficients[,r+1]+x[i-1,]%*%t(IPI)
-if(p>0){
-for(j in 1:p){
-x[i,] <- x[i,]+ (x[i-j,]-x[i-j-1,])%*%t(fit$coefficients[,(r+2+k*(j-1)):(r+1+k*j)])
-}
-}
-}
-x <- x[(b+1):(b+n),]
-return(x)
-}
+save(table, file = "../Data/sim_data.Rdata")
 
 
-genx(fit, 200)
+
+table  %>% 
+       kable(caption = "Monte Carlo simulations: 1000 sample paths ", label = "test", digits = 2) %>%
+       kable_classic(full_width = F, html_font = "Times new roman") 
+
+
