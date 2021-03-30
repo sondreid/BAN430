@@ -65,7 +65,7 @@ fit <- testfit'
 
 simulate <- function(fit, R, train_length , h ) {
 
-    res <- matrix(0,2,3)
+    res <- matrix(0,2,5)
     colnames(res) <- c("RMSE", "MASE", "MAE", "MAPE",  "RMSSE")
     rownames(res) <- c("VAR multivariate", "ARIMA yt")
     for(i in 1:R){
@@ -86,21 +86,32 @@ simulate <- function(fit, R, train_length , h ) {
             next
         }
         else {
-            arima_uni <- data_x_y  %>% model(Arima = ARIMA(y_e, stepwise = FALSE, approximation = FALSE))
+            arima_uni <- data_x_y  %>% model(Arima = ARIMA(y_e, stepwise = TRUE, approximation = FALSE))
             #arima_uni <- data_x_y  %>% model(Arima =  ARIMA(y_e ~ pdq(1,0,0) + PDQ(0,0,0)))
             var_resids <-   y_t -  predict(var_multi, n.ahead = h)$fcst$y_e[,1]
             arima_resids <- y_t -  (arima_uni %>% forecast(h = h))$.mean
+            
             res[1,1] <- res[1,1] + RMSE(var_resids)/R     
             res[2,1] <- res[2,1] + RMSE(arima_resids)/R  
 
             res[1,2] <- res[1,2] + MASE(.resid = var_resids, .train = y_e, .period = 12)/R   
-            res[2,2] <- res[2,2] + MASE(.resid = arima_resids, .train = y_e, .period = 12)/R   
+            res[2,2] <- res[2,2] + MASE(.resid = arima_resids, .train = y_e, .period = 12)/R  
+            
+            res[1,3] <- res[1,3] + MAE(.resid = var_resids)/R   
+            res[2,3] <- res[2,3] + MAE(.resid = arima_resids)/R   
+            
+            res[1,4] <- res[1,4] + fabletools::MAPE(.resid = var_resids, .actual = y_t, .period = 12)/R   
+            res[2,4] <- res[2,4] + fabletools::MAPE(.resid = arima_resids, .actual = y_t, .period = 12)/R   
+            
+            
+            res[1,5] <- res[1,5] + RMSSE(.resid = var_resids, .train = y_e, .period = 12)/R   
+            res[2,5] <- res[2,5] + RMSSE(.resid = arima_resids, .train = y_e, .period = 12)/R   
         }
     }
     
     return(res)
 }
-simulate(testfit, R = 1, train_length = 160, h = 40)
+#simulate(testfit, R = 1, train_length = 160, h = 40)
 
 
 wrapperSim <- function(R, sample_length, test_ratio) {
@@ -110,22 +121,29 @@ wrapperSim <- function(R, sample_length, test_ratio) {
         h <- ceiling(sample_length* test_ratio)
         print(train_length)
         print(h)
-        arima_fit <- unemployment_ts[1:(train_length+h),]  %>%                                     
-            model(arima_optimal = ARIMA(unemployed, stepwise = TRUE, approximation = TRUE))
+        start <- (nrow(unemployment_ts) - sample_length)
+        arima_fit <- unemployment_ts[start:(nrow(unemployment_ts)), ]  %>%                                     
+            model(arima_optimal = ARIMA(unemployed, stepwise = FALSE, approximation = FALSE))
         sim_res <- simulate(arima_fit, R, train_length, h)
         parallel::stopCluster(cl)
         return(sim_res)
 }
 
-simres  <- wrapperSim(R= 10000, sample_length = 240, test_ratio = 0.1)
+simres  <- wrapperSim(R= 1000, sample_length = 240, test_ratio = 0.2)
 simres
 
 
 
 
-sim_res  %>% 
+simres  %>% 
+       kable(caption = "Monte Carlo simulation: Sample size: 200. Testratio: 20 %", label = "test", digits = 2) %>%
+       kable_classic(full_width = F, html_font = "Times new roman") %>% 
+  save_kable("../Plots/test.png")
+
+
+save(sim_res  %>% 
   kbl(caption = "Metrics of Monte Carlo simulated forecasts on generated data", digits = 2) %>%
-  kable_classic(full_width = F, html_font = "Times new roman")
+  kable_classic(full_width = F, html_font = "Times new roman"), file = "../Plots/sim_1000_240_0.1.html")
 
 
 
