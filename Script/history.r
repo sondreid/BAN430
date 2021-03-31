@@ -47,6 +47,27 @@ fc_multivariate_arima  %>% select(.model, date, .mean)  %>%
 
 
 
+wrapperSim <- function(R, sample_size, test_ratio) {
+  #' Wrapper function that splits the unemployment series into
+  #' test and training lengths based on an input sample length and
+  #' test ratio of the overall series length.
+  #' Passes this as parameters to the simulate function
+  cl <- parallel::makeCluster(parallel::detectCores())                                                                                         ### Make clusters
+  doParallel::registerDoParallel(cl)
+  train_length <- floor(sample_size * (1-test_ratio))
+  h <- ceiling(sample_size* test_ratio)
+  print(train_length)
+  print(h)
+  start <- (nrow(unemployment_ts) - sample_size)
+  arima_fit <- unemployment_ts[start:(nrow(unemployment_ts)), ]  %>%                                     
+    model(arima_optimal = ARIMA(unemployed, stepwise = FALSE, approximation = FALSE))
+  sim_res <- simulate(arima_fit, R, train_length, h) %>%
+    as.data.frame() %>% 
+    mutate("Sample length" = sample_size)
+  parallel::stopCluster(cl)
+  
+  return(sim_res)
+}
 
 
 

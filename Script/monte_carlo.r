@@ -11,7 +11,6 @@ load(file = "../Data/optimal_models.Rdata")
 
 
 
-unemployment_ts <- unemployment %>% as_tsibble(index = date)
 
 
 
@@ -23,14 +22,13 @@ generate_y <- function(fit, n, diff = 1, seas_diff = 1) {
     #' 
     sigma <- sd(residuals(fit)$.resid)
     resids <- residuals(fit)$.resid
-    mean_resid <- mean(residuals(fit)$.resid)
     ar_terms <- fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ar")) # AR terms and their coefficients
     ma_terms <- fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ma")) # MA terms and their coefficients
     p <- ar_terms %>%  nrow()                                                                                # AR term number
     m <- ma_terms  %>%  nrow()                                                                               # MA term number
     b <- 10                                                                                                  # Burn-ins
-    y <- rnorm(n+b, mean = mean(unemployment_ts$unemployed), sd = sigma)
-    #y <- rnorm(n+b, mean = mean(unemployment_ts$unemployed), sd = (sigma/sqrt(n)))
+    #y <- rnorm(n+b, mean = mean(unemployment_ts$unemployed), sd = sigma)
+    y <- rnorm(n+b, mean = mean(unemployment_train_ts$unemployed), sd = (sigma/sqrt(n)))
 
     for (i in (p+2):(n+b)) {
         #y[i] <- y[i] +  y[i-1] 
@@ -48,20 +46,12 @@ generate_y <- function(fit, n, diff = 1, seas_diff = 1) {
     return (y)
 }
 
-testfit  <- unemployment_ts %>%                                     
-            model(arima_optimal = ARIMA(unemployed, stepwise = TRUE, approximation = TRUE))
-generate_y(testfit, 216, 1)
-plot(generate_y(testfit, 216, 1))
+
+generate_y(fit_arima_optimal, 216, 1)
+plot(generate_y(fit_arima_optimal, 216, 1))
 
 
 
-
-
-'
-train_length <- 216
-h <- 24
-R <- 10
-fit <- testfit'
 
 simulate <- function(fit, R, train_length , h ) {
 
@@ -125,10 +115,8 @@ wrapperSim <- function(R, sample_size, test_ratio) {
         h <- ceiling(sample_size* test_ratio)
         print(train_length)
         print(h)
-        start <- (nrow(unemployment_ts) - sample_size)
-        arima_fit <- unemployment_ts[start:(nrow(unemployment_ts)), ]  %>%                                     
-            model(arima_optimal = ARIMA(unemployed, stepwise = FALSE, approximation = FALSE))
-        sim_res <- simulate(arima_fit, R, train_length, h) %>%
+        start <- (nrow(unemployment_train_ts) - sample_size)
+        sim_res <- simulate(fit_arima_optimal, R, train_length, h) %>%
           as.data.frame() %>% 
           mutate("Sample length" = sample_size)
         parallel::stopCluster(cl)
@@ -136,11 +124,11 @@ wrapperSim <- function(R, sample_size, test_ratio) {
         return(sim_res)
 }
 
-simres  <- wrapperSim(R= 1000, sample_size = 240, test_ratio = 0.2)
+simres  <- wrapperSim(R= 1, sample_size = 240, test_ratio = 0.2)
 simres
 
 
-sample_sizes <- c(100, 150, 200, 240)
+sample_sizes <- c(50,100, 150, 200)
 
 table <- data.frame()
 for (size in sample_sizes) {

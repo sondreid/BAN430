@@ -545,13 +545,12 @@ unemployment_train_ts_stationarity %>%
 
 
 # Finding the global optimal ARIMA-model by minimizing AICc
-#fit_arima_optimal <- unemployment_train_ts %>% 
- #   dplyr::dplyr::select(date, unemployed) %>% 
-  #  model(ARIMA_optimal = ARIMA(unemployed, 
-  #                              stepwise = FALSE,
-   #                             approximation = FALSE))
-#save(fit_arima_optimal, file = "../Data/arima_optimal.Rdata")
-load("../Data/arima_optimal.Rdata")
+fit_arima_optimal <- unemployment_train_ts %>% 
+    dplyr::select(date, unemployed) %>% 
+    model(ARIMA_optimal = ARIMA(unemployed, 
+                                stepwise = FALSE,
+                                approximation = FALSE))
+
 
 
 
@@ -689,5 +688,5 @@ accuracy_models <- bind_rows(
 accuracy_models
 
 
-save(fit_ets_optimal, fc_arima_optimal, fc_ets_optimal, file = "../Data/optimal_models.Rdata")
+save(fit_ets_optimal, fit_arima_optimal, fc_arima_optimal, fc_ets_optimal, file = "../Data/optimal_models.Rdata")
 
