@@ -113,7 +113,8 @@ forecast_level  %>%
        x = "Month",
        title = "Forecasting with VAR methods") +
   guides(colour = guide_legend(title = "Method:")) +
-  scale_colour_manual(values=c("#56B4E9", "orange")) 
+  scale_colour_manual(values=c("#56B4E9", "orange")) +
+  guides(colour = guide_legend(title = "Series"))
 
 
 
@@ -192,11 +193,10 @@ fc_var_vec  %>%
     geom_line(aes(x = date, y = unemployed, color = "VECM model")) +
     geom_line(aes(x = date, y = unemployed, color = "Observed unemployment"), data = unemployment_test_ts %>% filter(year(date) > 2007)) +   
     geom_ribbon(aes(x = date, ymin = lower, ymax = upper), alpha = 0.15, colour = "orange") + 
-    #geom_line(aes(x = date, y = lower, color = "Lower prediction interval", alpha = 0.5)) + 
-    #geom_line(aes(x = date, y = upper, color = "Upper prediction interval", alpha = 0.5)) +
     scale_colour_manual(values=c("black", "orange")) +
     theme_bw() + 
-    theme(legend.position = "bottom") 
+    theme(legend.position = "bottom") +
+    guides(colour = guide_legend(title = "Series"))
 
 #################Performance metrics table ###############
 

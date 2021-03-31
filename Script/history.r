@@ -70,8 +70,69 @@ wrapperSim <- function(R, sample_size, test_ratio) {
 }
 
 
+generate_y <- function(fit, n, diff = 1, seas_diff = 1) {
+  #' 
+  #' 
+  sigma <- sd(residuals(fit)$.resid)
+  resids <- residuals(fit)$.resid
+  ar_terms <- fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ar")) # AR terms and their coefficients
+  sma_terms <- fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "sma")) # Seasonal moving average terms and their coefficients
+  p <- ar_terms %>%  nrow()                                                                                # AR term number
+  m <- sma_terms  %>%  nrow()                                                                               # MA term number
+  b <- 10                                                                                                  # Burn-ins
+  #y <- rnorm(n+b, mean = mean(unemployment_ts$unemployed), sd = sigma)
+  y <- rnorm(n+b, mean = 0, sd = (sigma/sqrt(n)))
+  
+  for (i in (p+2):(n+b)) {
+    #y[i] <- y[i] +  y[i-1] 
+    if (p > 0 ) {
+      for(j in 1:p) {
+        y[i] <- y[i] + (y[i-j] - y[i-j-1]) * ar_terms$estimate[j]
+      }
+    }
+    if( m > 0 && i > 12*m) {
+      for(k in 1:m) {
+        y[i] <- y[i] + (resids[i-12*k] * sma_terms$estimate[k])
+      }
+    }
+  }
+  return (y)
+}
 
 
 
+if (any(is.na(predict(var_multi, n.ahead = h)$fcst$y_e))) { 
+  next
+}
+
+
+generate_y <- function(fit, n, diff = 1, seas_diff = 1) {
+  #' 
+  #' 
+  sigma <- sd(residuals(fit)$.resid)
+  resids <- residuals(fit)$.resid
+  ar_terms <- fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "ar")) # AR terms and their coefficients
+  sma_terms <- fit  %>% coefficients %>% dplyr::select(term, estimate)  %>%  filter(str_detect(term, "sma")) # Seasonal moving average terms and their coefficients
+  p <- ar_terms %>%  nrow()                                                                                # AR term number
+  m <- sma_terms  %>%  nrow()                                                                               # MA term number
+  b <- 10                                                                                                  # Burn-ins
+  #y <- rnorm(n+b, mean = mean(unemployment_ts$unemployed), sd = sigma)
+  y <- rnorm(n+b, mean = mean(unemployment_train_ts$unemployed), sd = (sigma/sqrt(n)))
+  
+  for (i in (p+2):(n+b)) {
+    #y[i] <- y[i] +  y[i-1] 
+    if (p > 0 ) {
+      for(j in 1:p) {
+        y[i] <- y[i] + (y[i-j] - y[i-j-1]) * ar_terms$estimate[j]
+      }
+    }
+    if( m > 0 && i > 12*m) {
+      for(k in 1:m) {
+        y[i] <- y[i] + (resids[i-12*k] * sma_terms$estimate[k])
+      }
+    }
+  }
+  return (y)
+}
 
 
