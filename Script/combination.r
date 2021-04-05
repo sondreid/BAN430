@@ -9,7 +9,9 @@ source("data.r")
 
 " Average of best three models "
 load(file = "../Data/optimal_models.Rdata")
-
+load("../Data/fit_dynamic_arima.Rdata")
+fit_dynamic_arima
+load("../Data/arima_optimal.Rdata")
 fc_arima_optimal %>% 
   bind_rows(fc_ets_optimal,fc_dynamic_naive )  %>% 
   accuracy(unemployment_test_ts)  %>% 
@@ -24,7 +26,7 @@ comb_mean_fc <- bind_rows(fc_arima_optimal, fc_ets_optimal, fc_dynamic_naive) %>
   dplyr::select(-cpi, -export, -Model,-unemployed) %>% 
   pivot_wider(names_from = .model, values_from = .mean) %>% 
   rowwise() %>% 
-  mutate(mean_fc = mean(ARIMA_dynamic, ARIMA_optimal, ETS_optimal))
+  mutate(mean_fc = mean(c(ARIMA_dynamic, ARIMA_optimal, ETS_optimal)))
 
 vec_mean_fc <- c(unemployment_test$unemployed- comb_mean_fc$mean_fc)
 mean_weighted_fc <- bind_cols(
@@ -79,14 +81,6 @@ mse_weighted_fc %>%
   kable_classic(full_width = F, html_font = "Times new roman")
 
 
-comb_mse_fc  %>% 
-  ggplot() +
-  geom_line(aes(x = date, y = mse_fc, color = "Mean forecasting model: ARIMA, ETS, ARIMA NAIVE")) +
-  geom_line(aes(x = date, y = unemployed, color = "Observed unemployment"), data = unemployment_test_ts) +
-  theme_bw() +
-  theme(legend.position = "bottom")
-
-
 
 #######################################################################################################
 ############################## Advanced combination method: AIC #######################################
@@ -112,6 +106,11 @@ sum_exp_delta_w <- sum(exp_delta_w_fit_arima_optimal,
 w_aic_fit_arima_optimal <- exp_delta_w_fit_arima_optimal/sum_exp_delta_w
 w_aic_fit_ets_optimal <- exp_delta_w_aic_fit_ets_optimal/sum_exp_delta_w
 w_aic_fit_dynamic_arima <- exp_delta_w_aic_fit_dynamic_arima/sum_exp_delta_w
+
+w_aic_fit_arima_optimal
+w_aic_fit_ets_optimal
+w_aic_fit_dynamic_arima
+
 
 comb_aic_fc <- bind_rows(fc_arima_optimal, fc_ets_optimal, fc_dynamic_naive) %>%
   as_tibble() %>% 
@@ -146,7 +145,7 @@ comparison_combined_forecast_accuracy <- bind_rows(
   arrange(MASE)
 
 comparison_combined_forecast_accuracy %>% 
-  kbl(caption = "Combined forecast accuracy", digits = 2) %>%
+  kbl(caption = "Combined forecast accuracy", digits = 3) %>%
   kable_classic(full_width = F, html_font = "Times new roman")
 
 
@@ -159,6 +158,11 @@ ggplot() +
   theme(legend.position = "bottom") +
   scale_colour_manual(values = c("red", "orange", "blue", "black")) +
   labs(title = "Combinational forecast",
+       caption = paste(fit_arima_optimal$ARIMA_optimal,
+                       " & ",
+                       fit_ets_optimal$ETS_optimal,
+                       " & ",
+                       fit_dynamic_arima$ARIMA_dynamic), 
        x = "Month",
        y = "Unemployment level") +
   guides(colour = guide_legend(title = "Series:"))

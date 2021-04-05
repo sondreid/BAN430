@@ -5,10 +5,17 @@
 #setwd("G:/Dokumenter/Google drive folder/NHH/Master/BAN430/Repository/Script")
 # Sourcing data from data.r 
 source("data.r")
+library(janitor)
+
 
 fit_deterministic <- unemployment_train_ts %>% 
   dplyr::select(date, unemployed) %>% 
-  model(Deterministic = ARIMA(unemployed ~ 1 + trend() + pdq(d=0) + PDQ(d = 0)))
+  model(Deterministic = ARIMA(unemployed ~ 1 + trend() + pdq(d = 0)))
+
+
+fit_deterministic %>% report() %>% coefficients() %>% dplyr::select(term, estimate) %>%  
+  kbl(caption = "Deterministic trend", digits = 2) %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
 
 fc_deterministic <- fit_deterministic %>% 
   forecast(h = 24)
@@ -20,8 +27,9 @@ ggtsdisplay(Residuals,
             main = paste("Residuals of ARIMA ", fit_deterministic$Deterministic))
 
 fc_deterministic %>% 
-  autoplot(unemployment_test_ts, level = 95) +
-  labs(title = "Deterministic forecast",
+  autoplot(unemployment_test_ts %>% filter(year(date) >= 2015), level = 95) +
+  labs(title = "Deterministic trend forecast",
+       subtitle = fit_deterministic$Deterministic,
        x = "Month",
        y = "Unemployment level") +
   theme_bw() +
@@ -29,6 +37,12 @@ fc_deterministic %>%
   guides(level = guide_legend(title = "Prediction level"))
 
 
+fc_deterministic %>% 
+  accuracy(unemployment_test_ts)   %>%  
+  arrange(MASE) %>% 
+  dplyr::select(-.type, -ME, -ACF1) %>% 
+  kbl(caption = "Deterministic forecast accuracy", digits = 2) %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
 
 
 ####### SPLINES #######
@@ -36,6 +50,9 @@ fc_deterministic %>%
 
 splines_deterministic <- splinef(unemployment_train_ts$unemployed, h  = 24)
 
+splines_deterministic %>% summary()
+
+splines_deterministic %>% autoplot()
 
 ###### FOURIER ######
 
@@ -45,12 +62,12 @@ fourier <- fourier(ts(unemployment_train_ts$unemployed, frequency =  12), K = 2,
 
 fit_fourier <- unemployment_train_ts  %>% 
     dplyr::select(date, unemployed)   %>% 
-    model(Fourier_k1 = ARIMA(unemployed ~ fourier(K = 1) + PDQ(0,0,0)),
-          Fourier_k2 = ARIMA(unemployed ~ fourier(K = 2) + PDQ(0,0,0)),
-          Fourier_k3 = ARIMA(unemployed ~ fourier(K = 3) + PDQ(0,0,0)),
-          Fourier_k4 = ARIMA(unemployed ~ fourier(K = 4) + PDQ(0,0,0)),
-          Fourier_k5 = ARIMA(unemployed ~ fourier(K = 5) + PDQ(0,0,0)),
-          Fourier_k6 = ARIMA(unemployed ~ fourier(K = 6) + PDQ(0,0,0)))
+    model("Fourier K1" = ARIMA(unemployed ~ fourier(K = 1) + pdq(d = 0) + PDQ(0,0,0)),
+          "Fourier K2" = ARIMA(unemployed ~ fourier(K = 2) + pdq(d = 0) + PDQ(0,0,0)),
+          "Fourier K3" = ARIMA(unemployed ~ fourier(K = 3) + pdq(d = 0) + PDQ(0,0,0)),
+          "Fourier K4" = ARIMA(unemployed ~ fourier(K = 4) + pdq(d = 0) + PDQ(0,0,0)),
+          "Fourier K5" = ARIMA(unemployed ~ fourier(K = 5) + pdq(d = 0) + PDQ(0,0,0)),
+          "Fourier K6" = ARIMA(unemployed ~ fourier(K = 6) + pdq(d = 0) + PDQ(0,0,0)))
 
 
 
@@ -63,12 +80,22 @@ fc_fourier <- fit_fourier %>%
     
     
 fc_fourier%>% 
-    autoplot(unemployment_test_ts  %>% filter(year(date) >= 2010), level = 95) +
-    facet_wrap(vars(.model), ncol = 2) +
-    theme_bw()
+  autoplot(unemployment_test_ts  %>% filter(year(date) >= 2015), level = 95) +
+  facet_wrap(facets = vars(.model), ncol = 3) +
+  labs(title = "Fourier terms forecast",
+       x = "Month",
+       y = "Unemployment level") +
+  theme_bw() +
+  guides(level = FALSE) +
+  theme(legend.position = "bottom")
     
 
-fc_fourier %>% accuracy(unemployment_test_ts)  %>%  arrange(MASE)
+fc_fourier %>% 
+  accuracy(unemployment_test_ts)  %>%  
+  arrange(MASE) %>% 
+  dplyr::select(-.type, -ME, -ACF1) %>% 
+  kbl(caption = "Fourier forecast accuracy", digits = 2) %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
 
 
 ###### COMPARISONS#################

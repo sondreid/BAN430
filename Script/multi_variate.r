@@ -291,11 +291,11 @@ fit_export  %>%
   kable_classic(full_width = F, html_font = "Times new roman")
 
 # ARIMA optimized model by reducing AICc
-# fit_dynamic_arima <- multivariate_data %>%
-#   model(ARIMA_dynamic = ARIMA(unemployed ~ cpi + export, stepwise = FALSE, approximation = FALSE))
+fit_dynamic_arima <- multivariate_data %>%
+   model(ARIMA_dynamic = ARIMA(unemployed ~ cpi + export, stepwise = FALSE, approximation = FALSE))
 
-# save(fit_dynamic_arima, file = "../Data/fit_dynamic_arima.Rdata")
-load("../Data/fit_dynamic_arima.Rdata")
+save(fit_dynamic_arima, file = "../Data/fit_dynamic_arima.Rdata")
+#load("../Data/fit_dynamic_arima.Rdata")
 fit_dynamic_arima
 report(fit_dynamic_arima)
 
@@ -350,7 +350,6 @@ fc_dynamic_naive <- forecast(fit_dynamic_arima,
   as_tibble(index = date)
 
 
-save(fc_dynamic_naive, fc_dynamic_arima, file = "../Data/fit_dynamic_arima.Rdata")
 
 
 
@@ -420,4 +419,4 @@ ggtsdisplay(Residual,
             main = "Residuals of multivariate model")
 
 
-
+save(fc_dynamic_naive, fc_dynamic_arima, fit_dynamic_arima, file = "../Data/fit_dynamic_arima.Rdata")
