@@ -10,7 +10,7 @@ library(janitor)
 
 fit_deterministic <- unemployment_train_ts %>% 
   dplyr::select(date, unemployed) %>% 
-  model(Deterministic = ARIMA(unemployed ~ 1 + trend() + pdq(d = 0)))
+  model("Deterministic trend" = ARIMA(unemployed ~ 1 + trend() + pdq(d = 0)))
 
 
 fit_deterministic %>% report() %>% coefficients() %>% dplyr::select(term, estimate) %>%  
@@ -42,6 +42,7 @@ fc_deterministic_table <- fc_deterministic %>%
 
 fc_deterministic_table   %>%  
   arrange(MASE) %>% 
+  rename("Model"  = .model) %>% 
   dplyr::select(-.type, -ME, -ACF1) %>% 
   kbl(caption = "Deterministic forecast accuracy", digits = 3) %>%
   kable_classic(full_width = F, html_font = "Times new roman")
@@ -67,7 +68,7 @@ splines <- unemployment_train_ts %>%  model(splines = splinef(unemployment_train
 fourier <- fourier(ts(unemployment_train_ts$unemployed, frequency =  12), K = 2, h  = 24)
 
 
-
+### Not differenced
 fit_fourier <- unemployment_train_ts  %>% 
     dplyr::select(date, unemployed)   %>% 
     model("Fourier K1" = ARIMA(unemployed ~ fourier(K = 1) + pdq(d = 0) + PDQ(0,0,0)),
@@ -77,11 +78,19 @@ fit_fourier <- unemployment_train_ts  %>%
           "Fourier K5" = ARIMA(unemployed ~ fourier(K = 5) + pdq(d = 0) + PDQ(0,0,0)),
           "Fourier K6" = ARIMA(unemployed ~ fourier(K = 6) + pdq(d = 0) + PDQ(0,0,0)))
 
+### Differenced
+
+fit_fourier <- unemployment_train_ts  %>% 
+  dplyr::select(date, unemployed)   %>% 
+  model("Fourier K1" = ARIMA(unemployed ~ fourier(K = 1) +  PDQ(0,0,0)),
+        "Fourier K2" = ARIMA(unemployed ~ fourier(K = 2) +  PDQ(0,0,0)),
+        "Fourier K3" = ARIMA(unemployed ~ fourier(K = 3) +  PDQ(0,0,0)),
+        "Fourier K4" = ARIMA(unemployed ~ fourier(K = 4) +  PDQ(0,0,0)),
+        "Fourier K5" = ARIMA(unemployed ~ fourier(K = 5) +  PDQ(0,0,0)),
+        "Fourier K6" = ARIMA(unemployed ~ fourier(K = 6) +  PDQ(0,0,0)))
 
 
 fit_fourier  %>% glance()  %>% arrange(AICc)
-
-
 
 fc_fourier <- fit_fourier %>% 
     forecast(h = 24)
@@ -103,18 +112,21 @@ fc_fourier_table <-
   accuracy(unemployment_test_ts)
 
 
-## Mulig å slette
+## Mulig å slette #################################
 fc_fourier_table %>% 
   arrange(MASE) %>% 
+  rename("Model"  = .model) %>% 
   dplyr::select(-.type, -ME, -ACF1) %>% 
   kbl(caption = "Fourier forecast accuracy", digits = 3) %>%
   kable_classic(full_width = F, html_font = "Times new roman")
 
 
 ###### COMPARISONS#################
+
 fc_fourier_table %>% 
   bind_rows(
   fc_deterministic_table)  %>% 
+  rename("Model"  = .model) %>% 
   arrange(MASE) %>% 
   dplyr::select(-.type, -ME, -ACF1) %>% 
   kbl(caption = "Deterministic forecasting methods", digits = 3) %>%
