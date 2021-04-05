@@ -78,8 +78,10 @@ ggtsdisplay(Unemployment,
 unemployment_train_ts  %>%  
     gg_subseries(unemployed) +
     labs(x = "Month", 
-         y = "Unemployment level") +
-    theme_bw()
+         y = "Unemployment level",
+         title = "Monthly subseries of Unemployment level in US") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 ###############################################################################################
 ##########################  Decomposition by various methods ##################################
@@ -141,13 +143,14 @@ ggplot() +
     scale_colour_manual(values=c("black","green", "red", "orange"))
 
 # Compare RMSE to find closest fit to original seasonal adjusted unemployment data of US
-
+library(janitor)
 
 t(bind_rows(
     "Model" = c("ME", "RMSE", "MAE",  "MPE", "MAPE" ),
-    X11 = c((ts(x11_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]),
-    X13 = c((ts(x13_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]),
-    STL = c((ts(stl_dcmp$season_adjust) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5])))  %>% 
+    X11 = c((ts(x11_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]) %>% round(2),
+    X13 = c((ts(x13_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]) %>% round(2),
+    STL = c((ts(stl_dcmp$season_adjust) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]) %>%  round(2)))  %>% 
+    janitor::row_to_names(1) %>% 
     kbl(caption = "Evaluation metrics of decomposition methods", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
@@ -554,7 +557,6 @@ unemployment_train_ts_stationarity %>%
 load("../Data/arima_optimal.Rdata")
 
 
-
 coefficients(fit_arima_optimal)$estimate
 reportfit_arima_optimal
 
@@ -637,7 +639,7 @@ fit_arima_optimal %>%
 
 fit_arima_optimal %>% 
     forecast(h = 24) %>% 
-    autoplot(unemployment_test_ts %>% filter(year(date) >= 2000), 
+    autoplot(unemployment_test_ts %>% filter(year(date) >= 2015), 
              level = 95) +
     labs(title = "Forecast of Unemployment level with",
          subtitle = fit_arima_optimal$ARIMA_optimal,
@@ -689,5 +691,5 @@ accuracy_models <- bind_rows(
 accuracy_models
 
 
-save(fit_ets_optimal, fc_arima_optimal, fc_ets_optimal, file = "../Data/optimal_models.Rdata")
+save(fit_ets_optimal, fc_arima_optimal, fc_ets_optimal, fit_arima_optimal, file = "../Data/optimal_models.Rdata")
 
