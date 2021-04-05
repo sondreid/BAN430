@@ -9,23 +9,7 @@ source("data.r")
 
 load(file = "../Data/optimal_models.Rdata")
 
-
 set.seed(12345)
-
-#generate_y(fit_arima_optimal, 216)
-
-
-### Example plot #####
-data.frame(y = generate_y(fit_arima_optimal, 216)[1:216], date = unemployment_train_ts$date) %>% as_tsibble()  %>% 
-  ggplot() +
-  geom_line(aes(x = date, y = y, color = "Generated series")) +
-  scale_colour_manual(values=c("black")) +
-  theme_bw() + 
-  theme(legend.position = "bottom") +    
-  labs(title = "Sample generated series from estimated ARIMA model",
-        y = "Generated values",
-        x = "Month") +
-  guides(colour = guide_legend(title = "Series"))
 
 
 
@@ -41,6 +25,18 @@ generate_y <- function(fit, n) {
   return(y)
 }
 
+### Example plot #####
+data.frame(y = generate_y(fit_arima_optimal, 216)[1:216], date = unemployment_train_ts$date) %>% as_tsibble()  %>% 
+  ggplot() +
+  geom_line(aes(x = date, y = y, color = "Generated series")) +
+  scale_colour_manual(values=c("black")) +
+  theme_bw() + 
+  theme(legend.position = "bottom") +    
+  labs(title = "Sample generated series from estimated ARIMA model",
+       y = "Generated values",
+       x = "Month") +
+  guides(colour = guide_legend(title = "Series"))
+
 
 
 simulate <- function(fit, R, train_length , h ) {
@@ -51,21 +47,21 @@ simulate <- function(fit, R, train_length , h ) {
     colnames(res) <- c("RMSE", "MASE", "MAE", "MAPE",  "RMSSE")
     rownames(res) <- c("VAR multivariate", "ARIMA yt")
     for(i in 1:R){
-        y <- generate_y(fit, train_length+h)
+        y <- diff(generate_y(fit, train_length+h))
         y_e <- y[1:train_length]
         y_t <- y[(train_length+1):(train_length+h)]
         x <- c()
         x[1] <- y[1]
         for (j in 2:(train_length+h)) {
-            x[j] <- 0.5*y[j-1] + 0.5*x[j-1] 
+            x[j] <- 0.5*y[j-1] + 0.5*x[j-1] + rnorm(1, 0, sd(y))
         }
         x_e <- x[1:train_length]
         x_t <- x[(train_length+1):(train_length+h)]
         data_x_y = data.frame(date = (1:train_length), x_e = x_e, y_e = y_e)  %>%  as_tsibble(index = date)
         ar_term <- VARselect(data_x_y[,2:3], lag.max =10, type="const")[["selection"]][[2]]            # Confirming AR term
         var_multi  <- vars:: VAR(data_x_y[,2:3], p  = 1,  type = "const")                              # VAR(1) model
-        arima_uni <- data_x_y  %>% model(Arima = ARIMA(y_e, stepwise = TRUE, approximation = FALSE))
-        #arima_uni <- data_x_y  %>% model(Arima =  ARIMA(y_e ~ pdq(1,0,0) + PDQ(0,0,0)))
+       # arima_uni <- data_x_y  %>% model(Arima = ARIMA(y_e, stepwise = TRUE, approximation = FALSE))
+        arima_uni <- data_x_y  %>% model(Arima =  ARIMA(y_e ~ 1 + pdq(1,0,0) + PDQ(0,0,0)))
         var_resids <-   y_t -  predict(var_multi, n.ahead = h)$fcst$y_e[,1]
         arima_resids <- y_t -  (arima_uni %>% forecast(h = h))$.mean                            
         
@@ -112,8 +108,8 @@ wrapperSim <- function(R, sample_size, test_ratio) {
         return(sim_res)
 }
 
-#simres  <- wrapperSim(R= 10, sample_size = 216, test_ratio = 0.2)
-#simres
+simres  <- wrapperSim(R= 50, sample_size = 216, test_ratio = 0.2)
+simres
 
 
 sample_sizes <- c(50,100, 150, 200)
