@@ -36,12 +36,14 @@ fc_deterministic %>%
   theme(legend.position = "bottom") + 
   guides(level = guide_legend(title = "Prediction level"))
 
+fc_deterministic_table <- fc_deterministic %>% 
+  accuracy(unemployment_test_ts) 
 
-fc_deterministic %>% 
-  accuracy(unemployment_test_ts)   %>%  
+
+fc_deterministic_table   %>%  
   arrange(MASE) %>% 
   dplyr::select(-.type, -ME, -ACF1) %>% 
-  kbl(caption = "Deterministic forecast accuracy", digits = 2) %>%
+  kbl(caption = "Deterministic forecast accuracy", digits = 3) %>%
   kable_classic(full_width = F, html_font = "Times new roman")
 
 
@@ -49,10 +51,16 @@ fc_deterministic %>%
 
 
 splines_deterministic <- splinef(unemployment_train_ts$unemployed, h  = 24)
-
 splines_deterministic %>% summary()
-
 splines_deterministic %>% autoplot()
+
+splines_forecast <- c(splines_deterministic$mean)
+
+
+resids <- c(unemployment_test_ts$unemployed) - splines_forecast
+
+splines <- unemployment_train_ts %>%  model(splines = splinef(unemployment_train_ts$unemployed, h = 24))
+
 
 ###### FOURIER ######
 
@@ -90,12 +98,27 @@ fc_fourier%>%
   theme(legend.position = "bottom")
     
 
-fc_fourier %>% 
-  accuracy(unemployment_test_ts)  %>%  
+fc_fourier_table <- 
+  fc_fourier %>% 
+  accuracy(unemployment_test_ts)
+
+
+## Mulig å slette
+fc_fourier_table %>% 
   arrange(MASE) %>% 
   dplyr::select(-.type, -ME, -ACF1) %>% 
-  kbl(caption = "Fourier forecast accuracy", digits = 2) %>%
+  kbl(caption = "Fourier forecast accuracy", digits = 3) %>%
   kable_classic(full_width = F, html_font = "Times new roman")
 
 
 ###### COMPARISONS#################
+fc_fourier_table %>% 
+  bind_rows(
+  fc_deterministic_table)  %>% 
+  arrange(MASE) %>% 
+  dplyr::select(-.type, -ME, -ACF1) %>% 
+  kbl(caption = "Deterministic forecasting methods", digits = 3) %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+
+
