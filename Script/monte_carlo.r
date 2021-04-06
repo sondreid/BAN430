@@ -121,7 +121,7 @@ save(table, file = "../Data/sim_data.Rdata")
 
 #### Print kable table ####
 table  %>% 
-       kable(caption = "Monte Carlo simulations: 1000 sample paths ", label = "test", digits = 3) %>%
+       kable(caption = "Monte Carlo simulations: 1000 sample paths ", digits = 3) %>%
        kable_classic(full_width = F, html_font = "Times new roman") 
 
 

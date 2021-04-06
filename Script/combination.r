@@ -31,9 +31,12 @@ comb_mean_fc <- bind_rows(fc_arima_optimal, fc_ets_optimal, fc_dynamic_naive) %>
 vec_mean_fc <- c(unemployment_test$unemployed- comb_mean_fc$mean_fc)
 mean_weighted_fc <- bind_cols(
   Model = "Mean weighted",
+  RMSE = RMSE(vec_mean_fc),
   MASE = MASE(.resid =  vec_mean_fc,  .train = c(unemployment_train_ts$unemployed), .period = 12),
+  MAE = MAE(vec_mean_fc),
+  MAPE = fabletools::MAPE(vec_mean_fc, .actual = c(unemployment_test_ts$unemployed)),
   RMSSE = RMSSE(.resid =  vec_mean_fc,  .train = c(unemployment_train_ts$unemployed), .period = 12),
-  RMSE = RMSE(vec_mean_fc)) 
+  ) 
 
 mean_weighted_fc %>% 
   kbl(caption = "Combined forecast accuracy", digits = 2) %>%
@@ -72,9 +75,12 @@ vec_mse_fc <- c(unemployment_test$unemployed - comb_mse_fc$mse_fc) # residuals v
 
 mse_weighted_fc <- bind_cols(
   Model = "MSE weighted",
+  RMSE = RMSE(vec_mse_fc),
   MASE = MASE(.resid =  vec_mse_fc,  .train = c(unemployment_train_ts$unemployed), .period = 12),
+  MAE = MAE(vec_mse_fc),
+  MAPE = fabletools::MAPE(vec_mse_fc, .actual = c(unemployment_test_ts$unemployed)),
   RMSSE = RMSSE(.resid =  vec_mse_fc,  .train = c(unemployment_train_ts$unemployed), .period = 12),
-  RMSE = RMSE(vec_mse_fc)) 
+  ) 
 
 mse_weighted_fc %>% 
   kbl(caption = "Combined forecast accuracy", digits = 2) %>%
@@ -124,9 +130,12 @@ comb_aic_fc <- bind_rows(fc_arima_optimal, fc_ets_optimal, fc_dynamic_naive) %>%
 vec_aic_fc <- c(unemployment_test$unemployed - comb_aic_fc$aic_fc) # residuals vector
 aic_weighted_fc <- bind_cols(
   Model = "AIC weighted",
+  RMSE = RMSE(vec_aic_fc), 
   MASE = MASE(.resid =  vec_aic_fc,  .train = c(unemployment_train_ts$unemployed), .period = 12),
+  MAE = MAE(.resid =  vec_aic_fc),
+  MAPE = fabletools::MAPE(.resid =  vec_aic_fc, .actual = c(unemployment_test_ts$unemployed)),
   RMSSE = RMSSE(.resid =  vec_aic_fc,  .train = c(unemployment_train_ts$unemployed), .period = 12),
-  RMSE = RMSE(vec_aic_fc)) 
+  ) 
 
 aic_weighted_fc %>% 
   kbl(caption = "Combined forecast accuracy", digits = 2) %>%
@@ -170,7 +179,7 @@ ggplot() +
 
 
 
-
+save(mse_weighted_fc, file = "../Data/mse_weighted_fc.Rdata")
 
 
 

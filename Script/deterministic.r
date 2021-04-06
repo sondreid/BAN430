@@ -5,7 +5,7 @@
 #setwd("G:/Dokumenter/Google drive folder/NHH/Master/BAN430/Repository/Script")
 # Sourcing data from data.r 
 source("data.r")
-library(janitor)
+
 
 
 fit_deterministic <- unemployment_train_ts %>% 
@@ -132,5 +132,5 @@ fc_fourier_table %>%
   kbl(caption = "Deterministic forecasting methods", digits = 3) %>%
   kable_classic(full_width = F, html_font = "Times new roman")
 
-
+save(fc_fourier_table,  file = "../Data/fourier_table.Rdata")
 

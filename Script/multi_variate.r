@@ -420,4 +420,4 @@ ggtsdisplay(Residual,
             main = "Residuals of multivariate model")
 
 
-save(fc_dynamic_naive, fc_dynamic_arima, fit_dynamic_arima, file = "../Data/fit_dynamic_arima.Rdata")
+save(fc_dynamic_naive, fc_dynamic_arima, fit_dynamic_arima, fc_dynamic_arima_forecastobject,fc_dynamic_naive_forecastobject,  file = "../Data/fit_dynamic_arima.Rdata")
