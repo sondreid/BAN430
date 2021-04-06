@@ -143,7 +143,6 @@ ggplot() +
     scale_colour_manual(values=c("black","green", "red", "orange"))
 
 # Compare RMSE to find closest fit to original seasonal adjusted unemployment data of US
-library(janitor)
 
 t(bind_rows(
     "Model" = c("ME", "RMSE", "MAE",  "MPE", "MAPE" ),
@@ -229,7 +228,7 @@ x11_seas_test <- seas(ts(unemployment %>% dplyr::select(unemployed),
 # Decomposed in seasonal, trend and irregularities of testset
 x11_dcmp_test <- data.frame(x11_seas_test) %>%
     left_join(dplyr::select(unemployment_test_ts, unemployed), by = "date") %>% 
-    dplyr::select(-adjustfac, -final, -seasonaladj)  %>% 
+    dplyr::select(-adjustfac, -final,)  %>% 
     mutate(date = yearmonth(date)) %>% 
     as_tsibble(index = date)  %>% 
     pivot_longer(cols = seasonal:unemployed,
@@ -268,19 +267,31 @@ fc_combined <- fc_x11_seasonal_adjust %>%
 
 ### Seasonal component plot
 
-
+color_palette <- c("#000000", "#E69F00", "#56B4E9", "#009E73",
+          "#0072B2", "#D55E00", "#CC79A7")
 fc_x11_season  %>% 
     ggplot() + 
     geom_line(aes(x = date, y = values, color = "Original data"), data = x11_dcmp_test %>%  filter(year(date) > 2014, components == "seasonal")) +
     geom_line(aes(x = date, y = .mean, color = .model)) + 
-    scale_fill_manual(color=wes_palette(n=5, name="GrandBudapest")) +
     theme_bw() + 
     labs(title = "Seasonal component forecast", y = "Seasonal unemployment level", x = "Month") +
     theme(legend.position = "bottom") +
+    scale_colour_manual(values = color_palette) +
     guides(colour = guide_legend(title = "Series"))
 
 
-## Seasonal adjusted component plot 
+## Seasonally adjusted component plot 
+
+
+fc_x11_seasonal_adjust  %>% 
+    ggplot() + 
+    geom_line(aes(x = date, y = values, color = "Original data"), data = x11_dcmp_test %>%  filter(year(date) > 2014, components == "seasonaladj")) +
+    geom_line(aes(x = date, y = .mean, color = .model)) + 
+    theme_bw() + 
+    labs(title = "Seasonally adjusted component forecast", y = "Seasonal unemployment level", x = "Month") +
+    theme(legend.position = "bottom") +
+    scale_colour_manual(values = color_palette) +
+    guides(colour = guide_legend(title = "Series"))
 
 
 ### Plot combined decomposition forecasting
@@ -288,7 +299,12 @@ fc_x11_season  %>%
 fc_combined %>% 
     ggplot() + 
     geom_line(aes(x = date, y = .mean, color = .model)) + 
-    geom_line(aes(x = date, y = unemployed, color = "Original data"), data = unemployment_test_ts %>%  filter(year(date) > 2014))
+    geom_line(aes(x = date, y = unemployed, color = "Original data"), data = unemployment_test_ts %>%  filter(year(date) > 2014)) +
+    theme_bw() + 
+    labs(title = "X11 forecast", y = "Seasonal unemployment level", x = "Month") +
+    theme(legend.position = "bottom") +
+    scale_colour_manual(values = color_palette) +
+    guides(colour = guide_legend(title = "Series"))
 
 
 
@@ -349,11 +365,23 @@ fc_added_x11 %>%
     theme_bw() +
     theme(legend.position = "bottom")
 
-##### Decomposition forecast accuracy #####
+##### Decomposition tables #####
 
+## Season table
 
-evaluate_forecast(fc_added_x11) %>% 
-    kable(caption = "Mean forecasts of series components", digits = 3) %>%
+evaluate_forecast(fc_x11_season, ".mean") %>% 
+    kable(caption = "Seasonal component forecast", digits = 3) %>%
+    kable_classic(full_width = F, html_font = "Times new roman") 
+
+## Seasonal adjusted table
+
+evaluate_forecast(fc_x11_seasonal_adjust, ".mean") %>% 
+    kable(caption = "Seasonally adjusted component forecast", digits = 3) %>%
+    kable_classic(full_width = F, html_font = "Times new roman") 
+
+## Decomposition forecast table
+evaluate_forecast(fc_combined, ".mean") %>% 
+    kable(caption = "X11 combined forecast", digits = 3) %>%
     kable_classic(full_width = F, html_font = "Times new roman") 
 
 
