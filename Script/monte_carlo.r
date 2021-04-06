@@ -1,5 +1,5 @@
 ########################################################################
-#################### MONTECARLO  ######################################
+#################### MONTECARLO SIMULATION #############################
 ########################################################################
 
 #setwd("/Users/olaiviken/Documents/BAN430/BAN430/Script")
@@ -83,7 +83,7 @@ simulate <- function(fit, R, train_length , h ) {
     
     return(res)
 }
-#simulate(testfit, R = 1, train_length = 160, h = 40)
+
 
 
 wrapperSim <- function(R, sample_size, test_ratio) {
@@ -105,21 +105,21 @@ wrapperSim <- function(R, sample_size, test_ratio) {
         
         return(sim_res)
 }
-
+#simulate(testfit, R = 1, train_length = 160, h = 40)
 #simres  <- wrapperSim(R= 50, sample_size = 216, test_ratio = 0.2)
 #simres
 
-
+#Sample sizes included in results
 sample_sizes <- c(50,100, 150, 200)
 
 table <- data.frame()
 for (size in sample_sizes) {
-  table <- table %>% rbind(., wrapperSim(R= 1000, sample_size = size, test_ratio = 0.2))
+  table <- table %>% rbind(., wrapperSim(R= 1000, sample_size = size, test_ratio = 0.2)) #Populate table for each sample size
 }
 save(table, file = "../Data/sim_data.Rdata")
 
 
-
+#### Print kable table ####
 table  %>% 
        kable(caption = "Monte Carlo simulations: 1000 sample paths ", label = "test", digits = 3) %>%
        kable_classic(full_width = F, html_font = "Times new roman") 
