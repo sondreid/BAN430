@@ -274,7 +274,9 @@ fc_x11_season  %>%
     geom_line(aes(x = date, y = values, color = "Original data"), data = x11_dcmp_test %>%  filter(year(date) > 2014, components == "seasonal")) +
     geom_line(aes(x = date, y = .mean, color = .model)) + 
     theme_bw() + 
-    labs(title = "Seasonal component forecast", y = "Seasonal unemployment level", x = "Month") +
+    labs(title = "Seasonal component forecast", y = "Seasonal unemployment level", 
+         x = "Month",
+         subtitle = TeX("$\\hat{S_t}$")) +
     theme(legend.position = "bottom") +
     scale_colour_manual(values = color_palette) +
     guides(colour = guide_legend(title = "Series"))
@@ -288,7 +290,8 @@ fc_x11_seasonal_adjust  %>%
     geom_line(aes(x = date, y = values, color = "Original data"), data = x11_dcmp_test %>%  filter(year(date) > 2014, components == "seasonaladj")) +
     geom_line(aes(x = date, y = .mean, color = .model)) + 
     theme_bw() + 
-    labs(title = "Seasonally adjusted component forecast", y = "Seasonal unemployment level", x = "Month") +
+    labs(title = "Seasonally adjusted component forecast", y = "Seasonal unemployment level", x = "Month", 
+         subtitle = TeX("$\\hat{A_t} = \\hat{T_t} + \\hat{R_t} $")) +
     theme(legend.position = "bottom") +
     scale_colour_manual(values = color_palette) +
     guides(colour = guide_legend(title = "Series"))
@@ -301,7 +304,9 @@ fc_combined %>%
     geom_line(aes(x = date, y = .mean, color = .model)) + 
     geom_line(aes(x = date, y = unemployed, color = "Original data"), data = unemployment_test_ts %>%  filter(year(date) > 2014)) +
     theme_bw() + 
-    labs(title = "X11 forecast", y = "Seasonal unemployment level", x = "Month") +
+    labs(title = "X11 forecast", y = "Seasonal unemployment level", 
+         x = "Month",
+         subtitle = TeX("$\\hat{y_t} = \\hat{S_t} + \\hat{A_t} $")) +
     theme(legend.position = "bottom") +
     scale_colour_manual(values = color_palette) +
     guides(colour = guide_legend(title = "Series"))
@@ -316,7 +321,15 @@ x11_models <- x11_dcmp %>%
     model(Mean = MEAN(values),
           Drift = RW(values ~ drift()),
           Naive = NAIVE(values),
-          SNaive = SNAIVE(values ~ lag("year"))) # HUKS ? SJEKKE ETS!!!!!!!!!!!!!!!!!!!!!!!!!
+          SNaive = SNAIVE(values ~ lag("year"))) 
+
+
+
+x11_train <- x11_dcmp %>%
+    pivot_longer(cols = c("seasonal", "trend", "irregular", "unemployed"),
+                 names_to = "components",
+                 values_to = "values") %>% 
+    dplyr::select(date, components, values)
 
 # x11 forecasting each of the decomposition part
 fc_x11 <- x11_models %>% 
@@ -338,7 +351,22 @@ x11_models  %>%
     guides(colour = guide_legend(title = "Model:")) +
     theme_bw()  +
     theme(legend.position = "bottom")
-# HUSK ? FIKSE LEGENDS
+
+
+#### Components facet plot
+x11_train  %>% 
+    filter(components != "seasonaladj") %>% 
+    ggplot() +
+    geom_line(aes(x = date, y = values, col = components)) +
+    facet_grid(vars(components),
+               scales = "free_y") +
+    labs(title = "Forecast with X11 decomposition",
+         subtitle = "Unemployed = Trend + Seasonal + Irregular",
+         y = "Unemployment level",
+         x = "Month") +
+    guides(colour = guide_legend(title = "Model:")) +
+    theme_bw()  +
+    theme(legend.position = "bottom")
 
 
 # Forming forcaste of the test

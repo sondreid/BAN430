@@ -30,6 +30,7 @@ library(seasonal)
 #library(x13binary)
 library(kableExtra)
 library(urca) 
+library(latex2exp)
 library(tsDyn)
 library(bvartools)
 
