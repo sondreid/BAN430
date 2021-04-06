@@ -192,7 +192,7 @@ x13_dcmp %>%
 ######################## FORECASTING OF DECOMPOSITION ##################################
 ########################################################################################
 # Choosing X11 because of best RMSE
-# Forecast indivial compnents of the X11 decomposition
+# Forecast individual components of the X11 decomposition
 
 # Testset of the best decomposition method
 x11_seas_test <- seas(ts(unemployment %>% dplyr::select(unemployed), 
@@ -245,10 +245,20 @@ x11_models  %>%
 
 
 # Forming forcaste of the test
-fc_x11 %>% 
+data_added_x11 <- 
+    x11_dcmp %>% 
     filter(!components %in% c("seasonaladj", "unemployed")) %>% 
     group_by(.model) %>% 
-    summarise("Unemployment level" = sum(.mean)) %>% 
+    summarise("Unemployment level" = sum(.mean))
+
+
+fc_added_x11 <- 
+    fc_x11 %>% 
+    filter(!components %in% c("seasonaladj", "unemployed")) %>% 
+    group_by(.model) %>% 
+    summarise("Unemployment level" = sum(.mean))
+
+fc_added_x11 %>% 
     autoplot() +
     autolayer(unemployment_test_ts %>% filter(year(date) >= 2000)) +
     guides(colour = guide_legend(title = "Model:")) +
@@ -258,6 +268,33 @@ fc_x11 %>%
     theme_bw() +
     theme(legend.position = "bottom")
 
+##### Decomposition forecast accuracy #####
+
+
+decompositon_fc_table <-
+    fc_x11 %>% as_tibble() %>% 
+    mutate(resid = c(unemployment_test_ts$unemployed - .mean))
+
+    
+decompositon_fc_table <- data.frame("Model" = character(),
+                                    "RMSE" = double(),
+                                    "MAE" = double(),
+                                    "MAPE" = double()) %>%  as_tibble()
+for (model in fc_added_x11$.model %>% unique()) {
+    data = fc_added_x11 %>%  filter(.model == model)
+    resids = c(unemployment_test$unemployed) - c(data$`Unemployment level`)
+    print(resids)
+    decompositon_fc_table %<>% bind_rows(
+        data.frame(Model = model,
+                   RMSE = RMSE(resids),
+                   MAE =  MAE(.resid =  resids),
+                   MAPE = fabletools::MAPE(.resid = resids, .actual = unemployment_test$unemployed))
+    )
+}
+decompositon_fc_table %>% 
+    arrange(RMSE) %>% 
+    kable(caption = "Mean forecasts of series components", digits = 3) %>%
+    kable_classic(full_width = F, html_font = "Times new roman") 
 
 
 ##################################################################################
@@ -379,9 +416,9 @@ models_ets_comparisons %>%
 # The residuals does not seem to have sign of correlation, the histogram is a little bit skewed but seems to be normally distributed. We can use the prediction interval.  
 
 
-Residuals <- residuals(fit_ets)$.resid
+residuals <- residuals(fit_ets)$.resid
 
-ggtsdisplay(residuals, 
+ggtsdisplay(residuals(fit_ets)$.resid, 
             plot.type = "histogram", 
             lag.max = 24, 
             theme = theme_bw(),
