@@ -12,6 +12,8 @@ load(file = "../Data/fit_dynamic_arima.Rdata")
 load(file = "../Data/mse_weighted_fc.Rdata")
 load(file = "../Data/fourier_table.Rdata")
 
+
+
 conclusion_table <- 
   fc_ets_optimal %>% 
   accuracy(unemployment_test_ts) %>% 
@@ -30,7 +32,8 @@ conclusion_table <-
                MAPE = fabletools:: MAPE(.resid = vecm_resids, .actual = c(unemployment_test$unemployed)),
                MASE = MASE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12),
                RMSSE = RMSSE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12)),
-    mse_weighted_fc
+    mse_weighted_fc,
+    evaluate_forecast(fc_combined, ".mean") %>% slice(1) %>% mutate(Model = "ETS decompositon")
   ) %>% 
   dplyr:: select(Model, RMSE, MASE, MAE, MAPE, RMSSE)   %>% 
   arrange(MASE)

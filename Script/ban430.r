@@ -368,7 +368,7 @@ x11_train  %>%
     theme_bw()  +
     theme(legend.position = "bottom")
 
-
+#### Utgår??
 # Forming forcaste of the test
 data_added_x11 <- 
     x11_dcmp %>% 
