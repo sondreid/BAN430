@@ -25,10 +25,12 @@ library(magrittr)
 library(tidyverse)
 library(forecast)
 library(feasts)
+library(janitor)
 library(seasonal)
 #library(x13binary)
 library(kableExtra)
 library(urca) 
+library(latex2exp)
 library(tsDyn)
 library(bvartools)
 
@@ -58,30 +60,31 @@ cpi_data <- read_csv("../Data/US/cpi_data.csv") %>%
     rename("date" = TIME, "cpi" = Value)  %>% 
     mutate(date = yearmonth(as.Date(paste(as.character(date), "-01", sep =""))))  %>% 
     filter(year(date) >= 2000, LOCATION == "USA")   %>% 
-    dplyr::select(date, cpi)  %>% 
-    as_tsibble(index = date) 
+    dplyr::select(date, cpi)  
 
-cpi_train <- cpi_data  %>% filter(year(date) <= 2017)
 
-export_ts <- read_csv("../Data/US/export_data.csv")  %>% 
+export_data <- read_csv("../Data/US/export_data.csv")  %>% 
     rename("date" = TIME, "export" = Value)  %>% 
     mutate(date = yearmonth(as.Date(paste(as.character(date), "-01", sep =""))))  %>% 
     filter(LOCATION == "USA", year(date) >= 2000 & year(date) <= 2019) %>%
-    dplyr::select(date, export)  %>% 
-    as_tsibble(index = date) 
+    dplyr::select(date, export)  
 
-export_train <- export_ts  %>% 
-    filter(year(date) <= 2017)
+unemployment <- unemp_df  %>% 
+    mutate(date = yearmonth(date))  %>% 
+    filter(year(date) >= 2000 & year(date) <= 2019)   %>% 
+    dplyr::select(date, unemployed, seasonal_unemployed)
 
+###############################################################################
+############################ LOAD DATA ########################################
+###############################################################################
+#save(unemployment, cpi_data, export_data, file =  "../Data/unemployment_cpi_exports.Rdata" )
+load(file = "../Data/unemployment_cpi_exports.Rdata")
 
 
 #################################################################################
 ########################### Time series data sets ###############################
 #################################################################################
-unemployment <- unemp_df  %>% 
-    mutate(date = yearmonth(date))  %>% 
-    filter(year(date) >= 2000 & year(date) <= 2019)   %>% 
-    dplyr::select(date, unemployed, seasonal_unemployed)   
+   
 
 unemployment_train <- unemployment  %>% 
     filter(year(date) <= 2017)  %>% 
@@ -96,4 +99,14 @@ unemployment_train_ts <-  unemployment_train %>%
 
 unemployment_test_ts <- unemployment %>% 
     as_tsibble(index = date)
+
+cpi_train <- 
+    cpi_data  %>% 
+    as_tsibble(index = date) %>% 
+    filter(year(date) <= 2017)
+
+export_train <- 
+    export_data  %>% 
+    as_tsibble(index = date) %>% 
+    filter(year(date) <= 2017)
 
