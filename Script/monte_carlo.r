@@ -130,4 +130,4 @@ table  %>%
        kable(caption = "Monte Carlo simulations: 1000 sample paths ", label = "test", digits = 3) %>%
        kable_classic(full_width = F, html_font = "Times new roman") 
 
-
+load("../Data/sim_data.Rdata")

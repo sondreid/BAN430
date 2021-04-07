@@ -12,6 +12,7 @@ fit_deterministic <- unemployment_train_ts %>%
   dplyr::select(date, unemployed) %>% 
   model(Deterministic = ARIMA(unemployed ~ 1 + trend() + pdq(d = 0)))
 
+fit_deterministic %>% report()
 
 fit_deterministic %>% report() %>% coefficients() %>% dplyr::select(term, estimate) %>%  
   kbl(caption = "Deterministic trend", digits = 2) %>%
@@ -19,6 +20,8 @@ fit_deterministic %>% report() %>% coefficients() %>% dplyr::select(term, estima
 
 fc_deterministic <- fit_deterministic %>% 
   forecast(h = 24)
+
+
 
 ggtsdisplay(Residuals, 
             plot.type = "histogram", 
@@ -37,12 +40,12 @@ fc_deterministic %>%
   guides(level = guide_legend(title = "Prediction level"))
 
 
-fc_deterministic %>% 
+deterministic_accuracy <- fc_deterministic %>% 
   accuracy(unemployment_test_ts)   %>%  
   arrange(MASE) %>% 
-  dplyr::select(-.type, -ME, -ACF1) %>% 
-  kbl(caption = "Deterministic forecast accuracy", digits = 2) %>%
-  kable_classic(full_width = F, html_font = "Times new roman")
+  dplyr::select(-.type, -ME, -ACF1) #%>% 
+  # kbl(caption = "Deterministic forecast accuracy", digits = 2) %>%
+  # kable_classic(full_width = F, html_font = "Times new roman")
 
 
 ####### SPLINES #######
@@ -62,18 +65,29 @@ fourier <- fourier(ts(unemployment_train_ts$unemployed, frequency =  12), K = 2,
 
 fit_fourier <- unemployment_train_ts  %>% 
     dplyr::select(date, unemployed)   %>% 
-    model("Fourier K1" = ARIMA(unemployed ~ fourier(K = 1) + pdq(d = 0) + PDQ(0,0,0)),
-          "Fourier K2" = ARIMA(unemployed ~ fourier(K = 2) + pdq(d = 0) + PDQ(0,0,0)),
-          "Fourier K3" = ARIMA(unemployed ~ fourier(K = 3) + pdq(d = 0) + PDQ(0,0,0)),
-          "Fourier K4" = ARIMA(unemployed ~ fourier(K = 4) + pdq(d = 0) + PDQ(0,0,0)),
-          "Fourier K5" = ARIMA(unemployed ~ fourier(K = 5) + pdq(d = 0) + PDQ(0,0,0)),
-          "Fourier K6" = ARIMA(unemployed ~ fourier(K = 6) + pdq(d = 0) + PDQ(0,0,0)))
+    model("Fourier K1" = ARIMA(unemployed ~ fourier(K = 1)  + PDQ(0,0,0)),
+          "Fourier K2" = ARIMA(unemployed ~ fourier(K = 2)  + PDQ(0,0,0)),
+          "Fourier K3" = ARIMA(unemployed ~ fourier(K = 3)  + PDQ(0,0,0)),
+          "Fourier K4" = ARIMA(unemployed ~ fourier(K = 4)  + PDQ(0,0,0)),
+          "Fourier K5" = ARIMA(unemployed ~ fourier(K = 5)  + PDQ(0,0,0)),
+          "Fourier K6" = ARIMA(unemployed ~ fourier(K = 6)  + PDQ(0,0,0)))
 
 
 
 fit_fourier  %>% glance()  %>% arrange(AICc)
 
+fit_fourier %>% 
+  dplyr::select("Fourier K2") %>% 
+  report()
 
+fit_fourier %>% dplyr::select("Fourier K5")
+
+fit_fourier %>% 
+  dplyr::select("Fourier K2") %>% 
+  coefficients() %>% 
+  dplyr::select(term, estimate) %>% 
+  kbl(caption = "Fourier terms", digits = 2) %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
 
 fc_fourier <- fit_fourier %>% 
     forecast(h = 24)
@@ -91,7 +105,8 @@ fc_fourier%>%
     
 
 fc_fourier %>% 
-  accuracy(unemployment_test_ts)  %>%  
+  accuracy(unemployment_test_ts)  %>%
+  bind_rows(deterministic_accuracy) %>% 
   arrange(MASE) %>% 
   dplyr::select(-.type, -ME, -ACF1) %>% 
   kbl(caption = "Fourier forecast accuracy", digits = 2) %>%

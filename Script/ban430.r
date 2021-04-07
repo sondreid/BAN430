@@ -131,16 +131,16 @@ stl_dcmp <- unemployment_train_ts %>%
 # Plot of the various decomposition methods
 ggplot() +
     geom_line(aes(x = date, y = seasonal_unemployed, col = "Unemployment US SA"), data = unemployment_train_ts) +
-    geom_line(aes(x = date, y = seasonaladj, col = "x13 SA"), data = x13_dcmp) +
+    #geom_line(aes(x = date, y = seasonaladj, col = "x13 SA"), data = x13_dcmp) +
     geom_line(aes(x = date, y = seasonaladj, col = "x11 SA"), data = x11_dcmp ) +
-    geom_line(aes(x = date, y = season_adjust, col = "STL SA"), data = stl_dcmp) +
+    #geom_line(aes(x = date, y = season_adjust, col = "STL SA"), data = stl_dcmp) +
     labs(title = "Replication of the seasonal adjusted data",
          y     = "Seasonal Adjusted Unemployment level",
          x     = "Month") +
     guides(colour = guide_legend("Decomposition method:")) +
     theme_bw() +
     theme(legend.position = "bottom") +
-    scale_colour_manual(values=c("black","green", "red", "orange"))
+    scale_colour_manual(values=c("black","orange", "red", "orange"))
 
 # Compare RMSE to find closest fit to original seasonal adjusted unemployment data of US
 library(janitor)
@@ -221,6 +221,7 @@ x11_models <- x11_dcmp %>%
           Naive = NAIVE(values),
           SNaive = SNAIVE(values ~ lag("year"))) # HUKS ? SJEKKE ETS!!!!!!!!!!!!!!!!!!!!!!!!!
 
+
 # x11 forecasting each of the decomposition part
 fc_x11 <- x11_models %>% 
     forecast(h = 24)
@@ -230,8 +231,8 @@ x11_models  %>%
     filter(components != "seasonaladj") %>% 
     forecast(h = 24)  %>%
     ggplot() +
-    geom_line(aes(x = date, y = .mean, col = .model)) +
-    geom_line(aes(x = date, y = values), data = x11_dcmp_test %>% filter(year(date) >= 2000 & year(date) <= 2019 )) +
+    #geom_line(aes(x = date, y = .mean, col = .model)) +
+    geom_line(aes(x = date, y = values), data = x11_dcmp_test %>% filter(year(date) >= 2000 & year(date) <= 2017 )) +
     facet_grid(vars(components),
                scales = "free_y") +
     labs(title = "Forecast with X11 decomposition",
@@ -250,7 +251,7 @@ fc_x11 %>%
     group_by(.model) %>% 
     summarise("Unemployment level" = sum(.mean)) %>% 
     autoplot() +
-    autolayer(unemployment_test_ts %>% filter(year(date) >= 2000)) +
+    autolayer(unemployment_test_ts %>% filter(year(date) >= 2015)) +
     guides(colour = guide_legend(title = "Model:")) +
     labs(title = "Forcasting with X11 decomposition",
          subtitle = "Unemployed = Trend + Season + Irregular",
@@ -258,6 +259,14 @@ fc_x11 %>%
     theme_bw() +
     theme(legend.position = "bottom")
 
+
+# Checking accuarcy on the test set
+fc_x11_accuracy <- fc_x11 %>% 
+  filter(!components %in% c("seasonaladj", "unemployed")) %>% 
+  group_by(.model) %>% 
+  summarise("Unemployment level" = sum(.mean))
+
+fc_x11_accuracy %>% accuracy()
 
 
 ##################################################################################
@@ -280,7 +289,6 @@ fit_ets # Error: Additive, Trend: Additive damped, Seasonal: Additive
 
 tidy(fit_ets) %>% 
     dplyr::select(-.model) %>% 
-    pivot_wider(names_from = term, values_from = estimate) %>% 
     kbl(caption = "Coefficients of ETS(A,Ad,A)", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
@@ -337,7 +345,7 @@ fit_ets %>%
 
 fit_ets_optimal %>% 
     forecast(h = 24) %>% 
-    autoplot(unemployment_test_ts %>% filter(year(date) >= 2000), 
+    autoplot(unemployment_test_ts %>% filter(year(date) >= 2015), 
              level = 95) +
     labs(title = "Forecast of Unemployment level with",
          subtitle = fit_ets_optimal$ETS_optimal,

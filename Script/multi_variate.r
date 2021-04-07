@@ -106,7 +106,7 @@ forecast_level <- fc_multivariate_var %>%
 # AICc and BIC optimized forecast, VAR(5) and VAR(1)           
 forecast_level  %>% 
   autoplot() +
-  autolayer(unemployment_test_ts %>% filter(year(date) > 2007)) +
+  autolayer(unemployment_test_ts %>% filter(year(date) >= 2015)) +
   theme_bw() +
   theme(legend.position = "bottom") +
   labs(y = "Unemployment level",
@@ -191,12 +191,15 @@ colnames(fc_var_vec) <- c("date", "unemployed", "lower", "upper")
 fc_var_vec  %>% 
     ggplot() +
     geom_line(aes(x = date, y = unemployed, color = "VECM model")) +
-    geom_line(aes(x = date, y = unemployed, color = "Observed unemployment"), data = unemployment_test_ts %>% filter(year(date) > 2007)) +   
+    geom_line(aes(x = date, y = unemployed, color = "Observed unemployment"), data = unemployment_test_ts %>% filter(year(date) >= 2015)) +   
     geom_ribbon(aes(x = date, ymin = lower, ymax = upper), alpha = 0.15, colour = "orange") + 
     scale_colour_manual(values=c("black", "orange")) +
     theme_bw() + 
     theme(legend.position = "bottom") +
-    guides(colour = guide_legend(title = "Series"))
+    guides(colour = guide_legend(title = "Series")) +
+    labs(title = "Forecast with VECM model",
+         x = "Month",
+         y = "Unemployment level")
 
 #################Performance metrics table ###############
 
