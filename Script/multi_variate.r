@@ -93,7 +93,7 @@ fit_multivariate_var <- multivariate_data_stationary %>%
 
 # VAR: forecasts
 fc_multivariate_var <- fit_multivariate_var  %>% 
-  forecast(h = 24)  %>% 
+  forecast::forecast(h = 24)  %>% 
   as_tsibble(index = date)
 
 # VAR: forecast adjusted with level
@@ -122,7 +122,7 @@ forecast_level  %>%
 ####################### Multivariate forecast accuracy: VAR ######################
 ##################################################################################
 
-
+### Fjernes####
 VARselect(multivariate_data_stationary[,2:4], lag.max =24, type="const")[["selection"]] # Confirming AR term
 #Fit VAR(1)
 var1 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 1, type="const")
@@ -162,7 +162,6 @@ data.frame(Model = "Multivariate VAR model AICc optimized",
 #################################################################################################
 ############################## Multivariate foorecast with VECM #################################
 #################################################################################################
-"Cointegrated stochastic trends --> VECM"
 
 VARselect(multivariate_data[,2:4], lag.max = 12, type="const")[["selection"]] # Confirming AR term
 
@@ -171,13 +170,10 @@ VARselect(multivariate_data[,2:4], lag.max = 12, type="const")[["selection"]] # 
 ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = "trace",
                K = 10, season = 12  ) ## k = 10 AR terms
 
-
 summary(ca_jo)
 
 var_vec <- vec2var(ca_jo, r =1)
 
-"Failed portmanteau test: Set of autocorrelation tests most likely ljung box test for several variables"
-serial.test(var_vec, lags.pt=24, type="PT.asymptotic")
 
 
 ################# VECM forecast ###############
@@ -187,6 +183,16 @@ fc_var_vec <- data.frame("date"= unemployment_test$date,
 colnames(fc_var_vec) <- c("date", "unemployed", "lower", "upper")
 
 
+"Failed portmanteau test: Set of autocorrelation tests most likely ljung box test for several variables"
+serial.test(var_vec, lags.pt=24, type="PT.asymptotic")
+
+
+### Confirming stationarity
+
+tseries::adf.test(fc_var_vec$unemployed)
+
+## Calculate residuals for VECM
+vecm_resids <- (unemployment_test$unemployed - fc_var_vec$unemployed) 
 
 fc_var_vec  %>% 
     ggplot() +
@@ -204,7 +210,6 @@ fc_var_vec  %>%
 
 #################Performance metrics table ###############
 
-vecm_resids <- (unemployment_test$unemployed - fc_var_vec$unemployed)
 data.frame(Model = "Multivariate VAR model AICc optimized VAR(5)", 
             Type = "Test", 
             RMSE = RMSE(var_aicc_resid),

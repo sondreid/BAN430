@@ -188,14 +188,14 @@ x13_dcmp %>%
 
 
 ########################################################################################
-######################## FORECASTING OF DECOMPOSITION ##################################
+######################## forecast::forecastING OF DECOMPOSITION ##################################
 ########################################################################################
 # Choosing X11 because of best RMSE
-# Forecast individual components of the X11 decomposition
+# forecast::forecast individual components of the X11 decomposition
 
 
 
-evaluate_forecast <- function(df, train = unemployment_train_ts$unemployed, test = unemployment_test$unemployed, column = "Unemployment level") {
+evaluate_forecast <- function(df, train = unemployment_train_ts$unemployed, test = unemployment_test$unemployed, column) {
     #' Function that calculates performance metrics for an input dataframe
     #' Calculates a vector of residuals based on the column of the dataframe specified in the 
     #' column parameter. 
@@ -270,9 +270,14 @@ x11_seasonal_adjust <- x11_dcmp %>%
           Arima = ARIMA(seasonaladj ~ PDQ(0,0,0), stepwise = FALSE, approximation = FALSE),
           ETS   = ETS(seasonaladj ~ season("N"), ic = "aicc"))
 
-fc_x11_season <- x11_season %>% forecast(h = 24)
+fc_x11_season <- x11_season %>% forecast::forecast(h = 24)
 
-fc_x11_seasonal_adjust <- x11_seasonal_adjust %>% forecast(h = 24)
+fc_x11_seasonal_adjust <- x11_seasonal_adjust %>% forecast::forecast(h = 24)
+
+ets_decomposition_fitted <- (x11_seasonal_adjust %>%
+                             augment() %>% as_tibble() %>%  filter(.model == "ETS")) +
+                             (x11_season %>%
+                                 augment() %>% as_tibble() %>%  filter(.model == "SNaive"))
 
 fc_combined <- fc_x11_season %>% left_join(fc_x11_seasonal_adjust, by = c("date", ".model"))
 
@@ -280,7 +285,8 @@ fc_combined <- fc_x11_season %>% left_join(fc_x11_seasonal_adjust, by = c("date"
 snaive  <-  (fc_x11_season %>% filter(.model == "SNaive"))$.mean
 
 fc_combined <- fc_x11_seasonal_adjust %>% 
-    filter(.model %in% c("Naive", "Arima", "ETS")) %>% 
+    filter(.model %in% c("ETS")) %>% 
+    mutate(.model = "ETS formed decomposition") %>% 
     mutate(.mean = .mean + snaive) 
 
 
@@ -293,7 +299,7 @@ fc_x11_season  %>%
     geom_line(aes(x = date, y = values, color = "Original data"), data = x11_dcmp_test %>%  filter(year(date) > 2014, components == "seasonal")) +
     geom_line(aes(x = date, y = .mean, color = .model)) + 
     theme_bw() + 
-    labs(title = "Seasonal component forecast", y = "Seasonal unemployment level", 
+    labs(title = "Seasonal component forecast::forecast", y = "Seasonal unemployment level", 
          x = "Month",
          subtitle = TeX("$\\hat{S_t}$")) +
     theme(legend.position = "bottom") +
@@ -309,21 +315,21 @@ fc_x11_seasonal_adjust  %>%
     geom_line(aes(x = date, y = values, color = "Original data"), data = x11_dcmp_test %>%  filter(year(date) > 2014, components == "seasonaladj")) +
     geom_line(aes(x = date, y = .mean, color = .model)) + 
     theme_bw() + 
-    labs(title = "Seasonally adjusted component forecast", y = "Seasonal unemployment level", x = "Month", 
+    labs(title = "Seasonally adjusted component forecast::forecast", y = "Seasonal unemployment level", x = "Month", 
          subtitle = TeX("$\\hat{A_t} = \\hat{T_t} + \\hat{R_t} $")) +
     theme(legend.position = "bottom") +
     scale_colour_manual(values = color_palette) +
     guides(colour = guide_legend(title = "Series"))
 
 
-### Plot combined decomposition forecasting
+### Plot combined decomposition forecast::forecasting
 
 fc_combined %>% 
     ggplot() + 
     geom_line(aes(x = date, y = .mean, color = .model)) + 
     geom_line(aes(x = date, y = unemployed, color = "Original data"), data = unemployment_test_ts %>%  filter(year(date) > 2014)) +
     theme_bw() + 
-    labs(title = "X11 forecast", y = "Seasonal unemployment level", 
+    labs(title = "X11 forecast::forecast", y = "Seasonal unemployment level", 
          x = "Month",
          subtitle = TeX("$\\hat{y_t} = \\hat{S_t} + \\hat{A_t} $")) +
     theme(legend.position = "bottom") +
@@ -351,20 +357,20 @@ x11_train <- x11_dcmp %>%
     dplyr::select(date, components, values)
 
 
-# x11 forecasting each of the decomposition part
+# x11 forecast::forecasting each of the decomposition part
 fc_x11 <- x11_models %>% 
-    forecast(h = 24)
+    forecast::forecast(h = 24)
 
-# Forecasting each of the individual decomposed series 
+# forecast::forecasting each of the individual decomposed series 
 x11_models  %>% 
     filter(components != "seasonaladj") %>% 
-    forecast(h = 24)  %>%
+    forecast::forecast(h = 24)  %>%
     ggplot() +
     #geom_line(aes(x = date, y = .mean, col = .model)) +
     geom_line(aes(x = date, y = values), data = x11_dcmp_test %>% filter(year(date) >= 2000 & year(date) <= 2017 )) +
     facet_grid(vars(components),
                scales = "free_y") +
-    labs(title = "Forecast with X11 decomposition",
+    labs(title = "forecast::forecast with X11 decomposition",
          subtitle = "Unemployed = Trend + Seasonal + Irregular",
          y = "Unemployment level",
          x = "Month") +
@@ -380,7 +386,7 @@ x11_train  %>%
     geom_line(aes(x = date, y = values, col = components)) +
     facet_grid(vars(components),
                scales = "free_y") +
-    labs(title = "Forecast with X11 decomposition",
+    labs(title = "forecast::forecast with X11 decomposition",
          subtitle = "Unemployed = Trend + Seasonal + Irregular",
          y = "Unemployment level",
          x = "Month") +
@@ -418,27 +424,20 @@ fc_added_x11 %>%
 ## Season table
 
 evaluate_forecast(df = fc_x11_season, column = ".mean", train = x11_dcmp_seasonal_train$values, test = x11_dcmp_seasonal_test$values) %>% 
-    kable(caption = "Seasonal component forecast", digits = 3) %>%
+    kable(caption = "Seasonal component forecast::forecast", digits = 3) %>%
     kable_classic(full_width = F, html_font = "Times new roman") 
 
 ## Seasonal adjusted table
 
 evaluate_forecast(df = fc_x11_seasonal_adjust, column = ".mean", train = x11_dcmp_seasonal_adjusted_train$values, test = x11_dcmp_seasonal_adjusted_test$values) %>% 
-    kable(caption = "Seasonally adjusted component forecast", digits = 3) %>%
+    kable(caption = "Seasonally adjusted component forecast::forecast", digits = 3) %>%
     kable_classic(full_width = F, html_font = "Times new roman") 
 
-## Decomposition forecast table
-evaluate_forecast(fc_combined, ".mean") %>% 
-    kable(caption = "X11 combined forecast", digits = 3) %>%
+## Decomposition forecast::forecast table
+evaluate_forecast(fc_combined, column = ".mean") %>% 
+    kable(caption = "X11 combined forecast::forecast", digits = 3) %>%
     kable_classic(full_width = F, html_font = "Times new roman") 
 
-# Checking accuarcy on the test set
-fc_x11_accuracy <- fc_x11 %>% 
-  filter(!components %in% c("seasonaladj", "unemployed")) %>% 
-  group_by(.model) %>% 
-  summarise("Unemployment level" = sum(.mean))
-
-fc_x11_accuracy %>% accuracy()
 
 
 ##################################################################################
@@ -456,7 +455,7 @@ fit_ets_optimal <- unemployment_train_ts %>%
     dplyr::select(date, unemployed) %>% 
     model(ETS_optimal = ETS(unemployed)
     ) 
-fc_ets_optimal <-  fit_ets_optimal %>% forecast(h = 24)
+fc_ets_optimal <-  fit_ets_optimal %>% forecast::forecast(h = 24)
 fit_ets # Error: Additive, Trend: Additive damped, Seasonal: Additive
 
 tidy(fit_ets) %>% 
@@ -480,12 +479,12 @@ fit_ets %>%
     theme_bw() 
 
 
-### Forecast ETS with levels
+### forecast::forecast ETS with levels
 fit_ets %>% 
-    forecast(h = 24) %>% 
+    forecast::forecast(h = 24) %>% 
     autoplot(level = 95) +
     autolayer(unemployment_test_ts  %>% filter(year(date) >= 2007), unemployed) +
-    labs(title = "Forecast with ETS",
+    labs(title = "forecast::forecast with ETS",
          y = "Unemployment level",
          x = "Month") +
     theme_bw() +
@@ -497,17 +496,17 @@ fit_ets %>%
 models_ets_comparisons_naiv_snaive <-  unemployment_train_ts %>%
     model(snaive = SNAIVE(unemployed),
           naiv   = NAIVE(unemployed)) %>% 
-    forecast(h = 24) 
+    forecast::forecast(h = 24) 
 
 # Plot vs simple forcecast methods
 fit_ets %>% 
-    forecast(h = 24) %>% 
+    forecast::forecast(h = 24) %>% 
     ggplot() +
     geom_line(aes(x = date, y  = .mean, col = "ETS(A, AD, A)")) +
     geom_line(aes(x = date, y  = .mean, col = "Snaive"), data = models_ets_comparisons_naiv_snaive %>% filter(.model == "snaive")) + 
     geom_line(aes(x = date, y  = .mean, col = "Naive"), data = models_ets_comparisons_naiv_snaive %>% filter(.model == "naiv")) + 
     geom_line(aes(x = date, y  = unemployed, col = "Observed unemployment"), data = unemployment_test_ts %>% filter(year(date) > 2007, year(date) < 2019)) + 
-    labs(title = "Forecast with ETS",
+    labs(title = "forecast::forecast with ETS",
          y = "Unemployment level",
          x = "Month") +
     theme_bw() +
@@ -516,10 +515,10 @@ fit_ets %>%
 
 
 fit_ets_optimal %>% 
-    forecast(h = 24) %>% 
+    forecast::forecast(h = 24) %>% 
     autoplot(unemployment_test_ts %>% filter(year(date) >= 2015), 
              level = 95) +
-    labs(title = "Forecast of Unemployment level with",
+    labs(title = "forecast::forecast of Unemployment level with",
          subtitle = fit_ets_optimal$ETS_optimal,
          y = "Unemployment level", 
          x = "Month") +
@@ -538,18 +537,18 @@ fit_ets_optimal %>%
 
 models_ets_comparisons <-  unemployment_train_ts %>%
     model(snaive = SNAIVE(unemployed),
-          naiv   = NAIVE(unemployed)) %>% forecast(h = 24) %>%
+          naiv   = NAIVE(unemployed)) %>% forecast::forecast(h = 24) %>%
     bind_rows(fit_ets %>% 
-                  forecast(h = 24)) %>% 
+                  forecast::forecast(h = 24)) %>% 
     accuracy(unemployment_test_ts) %>% 
     arrange(MASE) %>% 
     mutate(.model = c("ETS(A,Ad,A) ", "ETS(A,A,A)", "Naive", "SNaive")) %>% 
     rename("Model" = .model) %>% 
     dplyr::select(-".type", -ACF1)
 
-# Comparisons with simpler forecast methods
+# Comparisons with simpler forecast::forecast methods
 models_ets_comparisons %>% 
-    kbl(caption = "ETS model compared with simple benchmark forecasting models", digits = 2) %>%
+    kbl(caption = "ETS model compared with simple benchmark forecast::forecasting models", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
 
@@ -586,7 +585,7 @@ fit_ets %>%
 # Accuracy of ETS by train and test
 accuracy_ets <- bind_rows(
     fit_ets %>% accuracy(),
-    fit_ets %>% forecast(h = 12) %>% accuracy(unemployment_test_ts)
+    fit_ets %>% forecast::forecast(h = 12) %>% accuracy(unemployment_test_ts)
 ) %>% 
     dplyr::select(-ME, -MPE, -ACF1) %>% 
     arrange(MASE)
@@ -757,7 +756,7 @@ arima_manual_fits <- unemployment_train_ts %>%
 # Accuracy of traningset and testset
 accuracy_arima <- bind_rows(
     arima_manual_fits  %>% accuracy(),
-    arima_manual_fits  %>% forecast(h = 24)  %>%  accuracy(unemployment_test_ts)
+    arima_manual_fits  %>% forecast::forecast(h = 24)  %>%  accuracy(unemployment_test_ts)
 )  %>% 
     arrange(.type, MASE)  
 
@@ -765,7 +764,7 @@ accuracy_arima <- bind_rows(
 
 
 fc_arima_manual_fits <- arima_manual_fits %>% 
-    forecast(h = 24)   %>% 
+    forecast::forecast(h = 24)   %>% 
     filter(year(date) <= 2020)
 
 fc_arima_manual_fits  %>% 
@@ -817,10 +816,10 @@ fit_arima_optimal %>%
 
 
 fit_arima_optimal %>% 
-    forecast(h = 24) %>% 
+    forecast::forecast(h = 24) %>% 
     autoplot(unemployment_test_ts %>% filter(year(date) >= 2015), 
              level = 95) +
-    labs(title = "Forecast of Unemployment level with",
+    labs(title = "forecast::forecast of Unemployment level with",
          subtitle = fit_arima_optimal$ARIMA_optimal,
          y = "Unemployment level", 
          x = "Month") +
@@ -831,7 +830,7 @@ fit_arima_optimal %>%
 
 
 fc_arima_optimal <- fit_arima_optimal %>% 
-    forecast(h = 24)
+    forecast::forecast(h = 24)
 
 # RMSE of ARIMA-optimal; two methods -------------------------------------------
 sqrt(mean((unemployment_test$unemployed - fc_arima_optimal$.mean)^2))
@@ -844,7 +843,7 @@ unemployment_test_ts %>%
     geom_line(aes(x= date, y = unemployed, col = "Original data")) +
     geom_line(aes(x = date, y = .mean, col = "fc_arima_optimal"), data =  fc_arima_optimal) + 
     geom_line(aes(x = date, y = .mean, col = "fc_arima311011"), data =  fc_arima311011) +
-    labs(title = "Forecasting of unemployment US")
+    labs(title = "forecast::forecasting of unemployment US")
 
 accuracy_arima  <- bind_rows(
     fit_arima_optimal %>% accuracy(),
@@ -860,7 +859,7 @@ accuracy_arima
 "When comparing models using AICc, the most important part is that
 the models have the same differecing order (I).
 Even if the all the models does not pass a ljung-box test (prediction interval cannot
-be interpreted), we can still forecast"
+be interpreted), we can still forecast::forecast"
 
 # Comparing ETS vs ARIMA -------------------------------------------------------
 accuracy_models <- bind_rows(
