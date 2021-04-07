@@ -353,7 +353,7 @@ fc_dynamic_naive_forecastobject <- forecast(fit_dynamic_arima,
                              new_data = fc_predictors_naive)  %>% 
   mutate(Model = c("Predictor NAIVE"))
 
-fc_dynamic_naive <- forecast(fit_dynamic_arima, 
+fc_dynamic_naive <- forecast::forecast(fit_dynamic_arima, 
                              new_data = fc_predictors_naive)  %>% 
   mutate(Model = c("Predictor NAIVE")) %>% 
   as_tibble(index = date)

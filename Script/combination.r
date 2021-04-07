@@ -23,11 +23,10 @@ fc_arima_optimal %>%
 #######################################################################################################
 comb_mean_fc <- bind_rows(fc_arima_optimal, fc_ets_optimal, fc_dynamic_naive) %>%
   as_tibble() %>% 
-  dplyr::select(date, .model, .mean) %>% 
-  bind_rows(fc_combined %>% as_tibble() %>%  dplyr:: select(date, .model, .mean)) %>% 
+  dplyr::select(-cpi, -export, -Model,-unemployed) %>% 
   pivot_wider(names_from = .model, values_from = .mean) %>% 
   rowwise() %>% 
-  mutate(mean_fc = mean(c(ARIMA_dynamic, ARIMA_optimal, ETS_optimal, `ETS formed decomposition`)))
+  mutate(mean_fc = mean(c(ARIMA_dynamic, ARIMA_optimal, ETS_optimal)))
 
 vec_mean_fc <- c(unemployment_test$unemployed- comb_mean_fc$mean_fc)
 mean_weighted_fc <- bind_cols(
@@ -47,13 +46,9 @@ mean_weighted_fc %>%
 #######################################################################################################
 #################### Advanced combination method: MSE (Stock and Watson(2001)) ########################
 #######################################################################################################
-
-
-
 mse_arima_optimal <- mean((augment(fit_arima_optimal)$.fitted - unemployment_train_ts$unemployed)^2)
 mse_ets_optimal <- mean((augment(fit_ets_optimal)$.fitted - unemployment_train_ts$unemployed)^2)
 mse_dynamic_arima <- mean((augment(fit_dynamic_arima)$.fitted  - unemployment_train_ts$unemployed)^2)
-mse_formed_decompositon_ets <- mean((augment(fc_combined)$.fitted  - unemployment_train_ts$unemployed)^2)
 
 w_sum <- sum(1/mse_arima_optimal, 1/mse_ets_optimal, 1/mse_dynamic_arima)
 

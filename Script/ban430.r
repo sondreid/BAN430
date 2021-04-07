@@ -36,7 +36,7 @@ unemployment %>%
 ############################## Summary statistics #################################
 ###################################################################################
 
-# Minimum, 25%-percentile, Mean, Median, 75%-percentile and Maximum BY MONTH
+# Minimum, 25%-percentile, Mean, Median, 75%-percentile and Maximum by month
 unemployment_train  %>% 
     mutate(month = lubridate::month(date))  %>%
     group_by(month)  %>% 
@@ -51,7 +51,7 @@ unemployment_train  %>%
     kbl(caption = "Summary statistics of unemployment level in US") %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
-# SUMMARY STATISTICS FOR THE WHOLE PERIOD
+# Summary statistics for the whole period
 unemployment_train  %>% 
     mutate(month = lubridate::month(date))  %>%
     rename(Month = month) %>% 
@@ -65,10 +65,9 @@ unemployment_train  %>%
     kbl(caption = "Summary statistics of unemployment level in US") %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
-# 
-Unemployment <- unemployment_train$unemployed
 
-ggtsdisplay(Unemployment, 
+
+ggtsdisplay(unemployment_train$unemployed, 
             plot.type = "histogram", 
             lag.max = 24, 
             theme = theme_bw(),
@@ -131,9 +130,7 @@ stl_dcmp <- unemployment_train_ts %>%
 # Plot of the various decomposition methods
 ggplot() +
     geom_line(aes(x = date, y = seasonal_unemployed, col = "Unemployment US SA"), data = unemployment_train_ts) +
-    #geom_line(aes(x = date, y = seasonaladj, col = "x13 SA"), data = x13_dcmp) +
     geom_line(aes(x = date, y = seasonaladj, col = "x11 SA"), data = x11_dcmp ) +
-    #geom_line(aes(x = date, y = season_adjust, col = "STL SA"), data = stl_dcmp) +
     labs(title = "Replication of the seasonal adjusted data",
          y     = "Seasonal Adjusted Unemployment level",
          x     = "Month") +
@@ -143,7 +140,6 @@ ggplot() +
     scale_colour_manual(values=c("black","orange", "red", "orange"))
 
 # Compare RMSE to find closest fit to original seasonal adjusted unemployment data of US
-
 t(bind_rows(
     "Model" = c("ME", "RMSE", "MAE",  "MPE", "MAPE" ),
     X11 = c((ts(x11_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]) %>% round(2),
@@ -239,6 +235,8 @@ x11_dcmp_test <- data.frame(x11_seas_test) %>%
 ################################################################################
 #### Train and Test set of seasonal and seasonal adjusted components
 ################################################################################
+
+# Test sets
 x11_dcmp_seasonal_train <- x11_dcmp_test %>% 
   filter(components == "seasonal" & year(date) <= 2017)
   
@@ -250,8 +248,6 @@ x11_dcmp_seasonal_test <- x11_dcmp_test %>%
 
 x11_dcmp_seasonal_adjusted_test <- x11_dcmp_test %>% 
   filter(components == "seasonaladj" & year(date) >= 2018)
-
-
 
 
 # Train with mean, drift, naive, snaive, ets models 
@@ -269,21 +265,17 @@ x11_seasonal_adjust <- x11_dcmp %>%
           Naive = NAIVE(seasonaladj),
           Arima = ARIMA(seasonaladj ~ PDQ(0,0,0), stepwise = FALSE, approximation = FALSE),
           ETS   = ETS(seasonaladj ~ season("N"), ic = "aicc"))
-
+# Forecasts of seasonal component
 fc_x11_season <- x11_season %>% forecast::forecast(h = 24)
-
+#Forecast of seasonally adjusted component
 fc_x11_seasonal_adjust <- x11_seasonal_adjust %>% forecast::forecast(h = 24)
-
-ets_decomposition_fitted <- (x11_seasonal_adjust %>%
-                             augment() %>% as_tibble() %>%  filter(.model == "ETS")) +
-                             (x11_season %>%
-                                 augment() %>% as_tibble() %>%  filter(.model == "SNaive"))
-
+# Formed decomposition forecastr
 fc_combined <- fc_x11_season %>% left_join(fc_x11_seasonal_adjust, by = c("date", ".model"))
 
-
+# Filter out SNaive forecast from seasonal component forecast
 snaive  <-  (fc_x11_season %>% filter(.model == "SNaive"))$.mean
 
+# Add ETS and SNaive forecast
 fc_combined <- fc_x11_seasonal_adjust %>% 
     filter(.model %in% c("ETS")) %>% 
     mutate(.model = "ETS formed decomposition") %>% 
@@ -308,7 +300,6 @@ fc_x11_season  %>%
 
 
 ## Seasonally adjusted component plot 
-
 
 fc_x11_seasonal_adjust  %>% 
     ggplot() + 
@@ -349,7 +340,7 @@ x11_models <- x11_dcmp %>%
           SNaive = SNAIVE(values ~ lag("year"))) 
 
 
-
+### Training set of formed decomposition forecast
 x11_train <- x11_dcmp %>%
     pivot_longer(cols = c("seasonal", "trend", "irregular", "unemployed"),
                  names_to = "components",
