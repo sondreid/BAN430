@@ -937,7 +937,7 @@ ggtsdisplay(Residuals,
             plot.type = "histogram", 
             lag.max = 24, 
             theme = theme_bw(),
-            main = "Residuals of ARIMA model with fourier terms")
+            main = "Residuals of ARIMA model with deterministic linear terms")
 
 
 ###################################################################################################
@@ -980,6 +980,15 @@ fc_fourier_table %>%
   dplyr::select(-.type, -ME, -ACF1) %>% 
   kbl(caption = "Deterministic forecasting methods", digits = 3) %>%
   kable_classic(full_width = F, html_font = "Times new roman")
+
+
+## Residual
+Residuals <- (fit_fourier %>% augment())$.innov
+ggtsdisplay(Residuals, 
+            plot.type = "histogram", 
+            lag.max = 24, 
+            theme = theme_bw(),
+            main = "Residuals of ARIMA model with fourier  terms")
 
 
 #######################################################################################################
