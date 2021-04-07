@@ -195,7 +195,7 @@ x13_dcmp %>%
 
 
 
-evaluate_forecast <- function(df, column = "Unemployment level") {
+evaluate_forecast <- function(df, train = unemployment_train_ts$unemployed, test = unemployment_test$unemployed, column = "Unemployment level") {
     #' Function that calculates performance metrics for an input dataframe
     #' Calculates a vector of residuals based on the column of the dataframe specified in the 
     #' column parameter. 
@@ -207,14 +207,14 @@ evaluate_forecast <- function(df, column = "Unemployment level") {
                                         "RMSSE" = double()) %>%  as_tibble()
     for (model in df$.model %>% unique()) {
         data = df %>%  filter(.model == model)
-        resids = c(unemployment_test$unemployed) - c(data[column][[1]])
+        resids = c(test) - c(data[column][[1]])
         decompositon_fc_table %<>% bind_rows(
             data.frame(Model = model,
                        RMSE = RMSE(resids),
-                       MASE = MASE(resids, .train = unemployment_train_ts$unemployed, .period = 12),
+                       MASE = MASE(resids, .train = train, .period = 12),
                        MAE =  MAE(.resid =  resids),
-                       MAPE = fabletools::MAPE(.resid = resids, .actual = unemployment_test$unemployed),
-                       RMSSE = RMSSE(resids, .train = unemployment_train_ts$unemployed, .period = 12))
+                       MAPE = fabletools::MAPE(.resid = resids, .actual = test),
+                       RMSSE = RMSSE(resids, .train = train, .period = 12))
         )
     }
     return(decompositon_fc_table %>% arrange(MASE) )
@@ -225,6 +225,7 @@ x11_seas_test <- seas(ts(unemployment %>% dplyr::select(unemployed),
                          start = c("2000"), 
                          frequency = 12), 
                       x11 = "")
+
 # Decomposed in seasonal, trend and irregularities of testset
 x11_dcmp_test <- data.frame(x11_seas_test) %>%
     left_join(dplyr::select(unemployment_test_ts, unemployed), by = "date") %>% 
@@ -234,6 +235,24 @@ x11_dcmp_test <- data.frame(x11_seas_test) %>%
     pivot_longer(cols = seasonal:unemployed,
                  names_to = "components",
                  values_to = "values") 
+
+################################################################################
+#### Train and Test set of seasonal and seasonal adjusted components
+################################################################################
+x11_dcmp_seasonal_train <- x11_dcmp_test %>% 
+  filter(components == "seasonal" & year(date) <= 2017)
+  
+x11_dcmp_seasonal_adjusted_train <- x11_dcmp_test %>% 
+  filter(components == "seasonaladj" & year(date) <= 2017)
+
+x11_dcmp_seasonal_test <- x11_dcmp_test %>% 
+  filter(components == "seasonal" & year(date) >= 2018)
+
+x11_dcmp_seasonal_adjusted_test <- x11_dcmp_test %>% 
+  filter(components == "seasonaladj" & year(date) >= 2018)
+
+
+
 
 # Train with mean, drift, naive, snaive, ets models 
 x11_season <- x11_dcmp %>%
@@ -369,7 +388,7 @@ x11_train  %>%
     theme_bw()  +
     theme(legend.position = "bottom")
 
-#### Utgår??
+#### Utg?r??
 # Forming forcaste of the test
 data_added_x11 <- 
     x11_dcmp %>% 
@@ -398,13 +417,13 @@ fc_added_x11 %>%
 
 ## Season table
 
-evaluate_forecast(fc_x11_season, ".mean") %>% 
+evaluate_forecast(df = fc_x11_season, column = ".mean", train = x11_dcmp_seasonal_train$values, test = x11_dcmp_seasonal_test$values) %>% 
     kable(caption = "Seasonal component forecast", digits = 3) %>%
     kable_classic(full_width = F, html_font = "Times new roman") 
 
 ## Seasonal adjusted table
 
-evaluate_forecast(fc_x11_seasonal_adjust, ".mean") %>% 
+evaluate_forecast(df = fc_x11_seasonal_adjust, column = ".mean", train = x11_dcmp_seasonal_adjusted_train$values, test = x11_dcmp_seasonal_adjusted_test$values) %>% 
     kable(caption = "Seasonally adjusted component forecast", digits = 3) %>%
     kable_classic(full_width = F, html_font = "Times new roman") 
 
