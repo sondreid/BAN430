@@ -9,6 +9,7 @@
 " Installing the X13 binary files needed to perform X13-SEATS decomposition"
 #install.packages("seasonal", type = "source") 
 
+" Uncomment to install the packages used in this script"
 #install.packages(c("ffp3", "readxl", "vars", "lubridate",
  #                  "magrittr", "tidyverse", "forecast", "feasts",
  #                  "janitor", "seasonal", "x13binary", "kableExtra", "tseries",
@@ -77,7 +78,7 @@ export_train <-
     filter(year(date) <= 2017)
 
 ###################################################################################
-############################ DESCRIPTIV STATISTICS ################################
+############################ Descriptive statistics ################################
 ###################################################################################
 
 unemp_df %>%
@@ -245,9 +246,6 @@ x11_dcmp %>%
 ######################## Forecasting of X11 decomposed series ##########################
 ########################################################################################
 # Choosing X11 because of best RMSE
-# forecast::forecast individual components of the X11 decomposition
-
-
 
 evaluate_forecast <- function(df, train = unemployment_train_ts$unemployed, test = unemployment_test$unemployed, column) {
     #' Function that calculates performance metrics for an input dataframe
@@ -872,11 +870,15 @@ bind_rows(fc_dynamic_arima,
 
 
 ### Dynamic arima residual plot
-ggtsdisplay((fit_dynamic_arima  %>% augment())$.innov, 
+
+Residuals <- (fit_dynamic_arima  %>% augment())$.innov
+
+ggtsdisplay(Residuals, 
             plot.type = "histogram", 
             lag.max = 24, 
             theme = theme_bw(),
             main = "Residuals of dynamic arima model")
+
 
 ###################################################################################################
 ############################### Forecast using deterministic trend ################################
@@ -928,6 +930,15 @@ fc_deterministic_table   %>%
   dplyr::select(-.type, -ME, -ACF1) %>% 
   kbl(caption = "Deterministic forecast accuracy", digits = 3) %>%
   kable_classic(full_width = F, html_font = "Times new roman")
+
+## Residual
+Residuals <- (fit_deterministic %>% augment())$.innov
+ggtsdisplay(Residuals, 
+            plot.type = "histogram", 
+            lag.max = 24, 
+            theme = theme_bw(),
+            main = "Residuals of ARIMA model with fourier terms")
+
 
 ###################################################################################################
 ############################### Forecast using deterministic fourier trend ########################

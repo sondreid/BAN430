@@ -25,7 +25,7 @@ generate_y <- function(fit, n) {
   return(y)
 }
 
-### Example plot #####
+### Example plot of a generated series based on optimal arima fit #####
 data.frame(y = generate_y(fit_arima_optimal, 216)[1:216], date = unemployment_train_ts$date) %>% as_tsibble()  %>% 
   ggplot() +
   geom_line(aes(x = date, y = y, color = "Generated series")) +
@@ -59,7 +59,7 @@ simulate <- function(fit, R, train_length , h ) {
         x_t <- x[(train_length+1):(train_length+h)]
         data_x_y = data.frame(date = (1:train_length), x_e = x_e, y_e = y_e)  %>%  as_tsibble(index = date)
         var_multi  <- vars:: VAR(data_x_y[,2:3], p  = 1,  type = "const")                              # VAR(1) model
-        arima_uni <- data_x_y  %>% model(Arima =  ARIMA(y_e ~ 0 + pdq(1,0,0) + PDQ(0,0,0)))
+        arima_uni <- data_x_y  %>% model(Arima =  ARIMA(y_e ~ 0 + pdq(1,0,0) + PDQ(0,0,0)))            # ARIMA pdq(1,1,0) model
         var_resids <-   y_t -  predict(var_multi, n.ahead = h)$fcst$y_e[,1]
         arima_resids <- y_t -  (arima_uni %>% forecast(h = h))$.mean                            
         
@@ -78,9 +78,7 @@ simulate <- function(fit, R, train_length , h ) {
         
         res[1,5] <- res[1,5] + RMSSE(.resid = var_resids, .train = y_e, .period = 12)/R   
         res[2,5] <- res[2,5] + RMSSE(.resid = arima_resids, .train = y_e, .period = 12)/R   
-        
     }
-    
     return(res)
 }
 
@@ -95,8 +93,8 @@ wrapperSim <- function(R, sample_size, test_ratio) {
         doParallel::registerDoParallel(cl)
         train_length <- floor(sample_size * (1-test_ratio))
         h <- ceiling(sample_size* test_ratio)
-        print(train_length)
-        print(h)
+        print(paste("Training length: ", train_length))
+        print(paste("h : ", h))
         start <- (nrow(unemployment_train_ts) - sample_size)
         sim_res <- simulate(fit_arima_optimal, R, train_length, h) %>%
           as.data.frame() %>% 
@@ -106,13 +104,16 @@ wrapperSim <- function(R, sample_size, test_ratio) {
         return(sim_res)
 }
 #simulate(testfit, R = 1, train_length = 160, h = 40)
-#simres  <- wrapperSim(R= 50, sample_size = 216, test_ratio = 0.2)
-#simres
+simres  <- wrapperSim(R= 50, sample_size = 216, test_ratio = 0.2)
+simres
 
-#Sample sizes included in results
+# Sample sizes for simulation
 sample_sizes <- c(50,100, 150, 200)
 
+# Add to table
 table <- data.frame()
+
+# Loop through all sample sizes, and perform a Monte Carlo simulation using 1000 samples of y and x
 for (size in sample_sizes) {
   table <- table %>% rbind(., wrapperSim(R= 1000, sample_size = size, test_ratio = 0.2)) #Populate table for each sample size
 }
