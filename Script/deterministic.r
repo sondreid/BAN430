@@ -7,28 +7,31 @@
 source("data.r")
 
 
-
+## Fit arima model with linear deterministic trend
 fit_deterministic <- unemployment_train_ts %>% 
   dplyr::select(date, unemployed) %>% 
   model("Deterministic trend" = ARIMA(unemployed ~ 1 + trend() + pdq(d = 0)))
 
 fit_deterministic %>% report()
 
+## Print kable table of coefficients
 fit_deterministic %>% report() %>% coefficients() %>% dplyr::select(term, estimate) %>%  
   kbl(caption = "Deterministic trend", digits = 2) %>%
   kable_classic(full_width = F, html_font = "Times new roman")
 
+# Forecast using arima model with linear determinstic trend
 fc_deterministic <- fit_deterministic %>% 
   forecast(h = 24)
 
 
-
+## Residuals of linear determinstic trend model
 ggtsdisplay(Residuals, 
             plot.type = "histogram", 
             lag.max = 24,
             theme = theme_bw(),
-            main = paste("Residuals of ARIMA ", fit_deterministic$Deterministic))
+            main = paste("Residuals of ARIMA ", fit_deterministic$`Deterministic trend`))
 
+### Plot of forecast
 fc_deterministic %>% 
   autoplot(unemployment_test_ts %>% filter(year(date) >= 2015), level = 95) +
   labs(title = "Deterministic trend forecast",
@@ -42,6 +45,8 @@ fc_deterministic %>%
 fc_deterministic_table <- fc_deterministic %>% 
   accuracy(unemployment_test_ts) 
 
+
+# Accuracy table
 fc_deterministic_table   %>%  
   arrange(MASE) %>% 
   rename("Model"  = .model) %>% 

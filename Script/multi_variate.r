@@ -142,7 +142,7 @@ var5 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 5, type="const")
 var13 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 13, type="const")
 var11 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 11, type="const")
 "Failed portmanteau test: Set of autocorrelation tests most likely ljung box test for several variables"
-serial.test(var4, lags.pt=24, type="PT.asymptotic")
+serial.test(var3, lags.pt=24, type="PT.asymptotic")
 
 
 aicc <- forecast_level %>% filter(.model == "VAR_aicc")
@@ -179,9 +179,10 @@ VARselect(multivariate_data[,2:4], lag.max = 12, type="const")[["selection"]] # 
 ### Identify cointegration between variables
 ca_jo <- ca.jo(multivariate_data[,2:4], ecdet = "const", type = "trace",
                K = 10, season = 12  ) ## k = 10 AR terms
-
+# Find relationshiprank
 summary(ca_jo)
 
+# Create new VEC model based on the VAR(10) model with r = 1
 var_vec <- vec2var(ca_jo, r =1)
 
 
@@ -218,7 +219,9 @@ fc_var_vec  %>%
          x = "Month",
          y = "Unemployment level")
 
-#################Performance metrics table ###############
+#################################################################################################
+############################## Performance metrics table #######################################
+#################################################################################################
 
 data.frame(Model = "Multivariate VAR model AICc optimized VAR(5)", 
             Type = "Test", 
@@ -295,6 +298,7 @@ fc_export <- fit_export  %>%
 # CPI: traning accuracy, outcome: ARIMA(2,1,3)(0,0,1)[12]
 fit_cpi  %>% 
   accuracy()  %>% 
+  rename("Model" = .model) %>% 
   arrange(MASE)  %>% 
   dplyr::select(-ME, -ACF1) %>% 
   kbl(caption = "Model fitting of predictor: CPI", digits = 2) %>%
@@ -304,6 +308,7 @@ fit_cpi  %>%
 # Export: training accuracy, outcome: ARIMA(2,1,2)(0,0,2)[12] w/ drift
 fit_export  %>% 
   accuracy()  %>% 
+  rename("Model" = .model) %>% 
   arrange(MASE)   %>% 
   dplyr::select(-ME, -ACF1) %>% 
   kbl(caption = "Model fitting of predictor: Export", digits = 2) %>%
@@ -393,7 +398,7 @@ fc_dynamic <- bind_rows(
 fc_dynamic %>% 
   ggplot() +
   geom_line(aes(x = date, y  = .mean, color = Model)) +
-  geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment_test_ts) +
+  geom_line(aes(x = date, y = unemployed, color = "Observed"), data = unemployment_test_ts %>%  filter(year(date) >2014)) +
   theme_bw() +
   scale_colour_manual(values=c("black", "#56B4E9", "orange")) +
   theme(legend.position = "bottom") +
@@ -429,13 +434,18 @@ bind_rows(
 
 
 
+
 Residual <- (fit_dynamic_arima  %>% augment())$.innov
 
-ggtsdisplay(Residual, 
+
+### Dynamic arima residual plot
+ggtsdisplay((fit_dynamic_arima  %>% augment())$.innov, 
             plot.type = "histogram", 
             lag.max = 24, 
             theme = theme_bw(),
-            main = "Residuals of multivariate model")
+            main = "Residuals of dynamic arima model")
+
+
 
 
 save(fc_dynamic_naive, fc_dynamic_arima, fit_dynamic_arima, fc_dynamic_arima_forecastobject,fc_dynamic_naive_forecastobject,  file = "../Data/fit_dynamic_arima.Rdata")

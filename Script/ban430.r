@@ -621,10 +621,7 @@ unemployment_train_ts %>% mutate(diff_unemployed  = difference(unemployed)) %>% 
 
 " Significant lag at 12 and 24 months suggest seasonal autocorrelation. It is therefore necessary to perform a seasonal differencing operation."
 
-unemployment_train_ts_stationarity <- unemployment_train_ts %>% 
-    mutate(diff_season_unemployed = difference(unemployed, 12),
-           diff_unemployed        = difference(unemployed),
-           diff_diff_season_unemployed = difference(diff_season_unemployed))
+
 
 
 unemployment_train_ts_stationarity %>%  ACF(var = diff_season_unemployed) %>% autoplot()
@@ -730,7 +727,7 @@ fit_arima_optimal <- unemployment_train_ts %>%
                                 approximation = FALSE))
 
 
-
+## Coefficients of optimal arima fit
 coefficients(fit_arima_optimal)$estimate
 reportfit_arima_optimal
 
@@ -798,7 +795,7 @@ fit_arima_optimal %>%
     gg_tsresiduals() # Does not seems to be sign of correlation in resduals, and the histogram shows a normally distributed, this means that the prediction interval will be ok. 
 
 Residuals <- augment(fit_arima_optimal)$.resid
-ggtsdisplay(Residuals, 
+ggtsdisplay(augment(fit_arima_optimal)$.resid, 
             plot.type = "histogram", 
             lag.max = 24, 
             theme = theme_bw(),
@@ -815,7 +812,7 @@ fit_arima_optimal %>%
     forecast::forecast(h = 24) %>% 
     autoplot(unemployment_test_ts %>% filter(year(date) >= 2015), 
              level = 95) +
-    labs(title = "forecast::forecast of Unemployment level with",
+    labs(title = "Forecast of Unemployment level with",
          subtitle = fit_arima_optimal$ARIMA_optimal,
          y = "Unemployment level", 
          x = "Month") +
@@ -839,7 +836,7 @@ unemployment_test_ts %>%
     geom_line(aes(x= date, y = unemployed, col = "Original data")) +
     geom_line(aes(x = date, y = .mean, col = "fc_arima_optimal"), data =  fc_arima_optimal) + 
     geom_line(aes(x = date, y = .mean, col = "fc_arima311011"), data =  fc_arima311011) +
-    labs(title = "forecast::forecasting of unemployment US")
+    labs(title = "Forecasting of unemployment US")
 
 accuracy_arima  <- bind_rows(
     fit_arima_optimal %>% accuracy(),
