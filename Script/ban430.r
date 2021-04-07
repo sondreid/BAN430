@@ -435,22 +435,26 @@ evaluate_forecast(fc_combined, column = ".mean") %>%
 ################################ ETS model #######################################
 ##################################################################################
 
-# Fitting the trainingset with the best ETS model by minimizing AICc
+# Fitting the training set with the best ETS model by minimizing AICc
 fit_ets <- unemployment_train_ts %>%
     dplyr::select(date, unemployed) %>% 
     model(ETS_optimal = ETS(unemployed, ic = "aicc"),
           "ETS(A,A,A)"  = ETS(unemployed ~ error("A") + trend("A") + season("N"),  ic = "aicc")
     ) 
-
+fit_ets # Error: Additive, Trend: Additive damped, Seasonal: Additive
 fit_ets_optimal <- unemployment_train_ts %>%
     dplyr::select(date, unemployed) %>% 
     model(ETS_optimal = ETS(unemployed)
     ) 
-fc_ets_optimal <-  fit_ets_optimal %>% forecast::forecast(h = 24)
-fit_ets # Error: Additive, Trend: Additive damped, Seasonal: Additive
 
+# Forecast optimal ets
+fc_ets_optimal <-  fit_ets_optimal %>% forecast::forecast(h = 24)
+
+
+## Print coefficients
 tidy(fit_ets) %>% 
-    dplyr::select(-.model) %>% 
+    dplyr::select(-.model) %>%
+    t() %>% 
     kbl(caption = "Coefficients of ETS(A,Ad,A)", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
@@ -470,12 +474,12 @@ fit_ets %>%
     theme_bw() 
 
 
-### forecast::forecast ETS with levels
+### forecast ETS with levels
 fit_ets %>% 
     forecast::forecast(h = 24) %>% 
     autoplot(level = 95) +
     autolayer(unemployment_test_ts  %>% filter(year(date) >= 2007), unemployed) +
-    labs(title = "forecast::forecast with ETS",
+    labs(title = "forecast with ETS",
          y = "Unemployment level",
          x = "Month") +
     theme_bw() +
@@ -506,14 +510,15 @@ fit_ets %>%
 
 
 fit_ets_optimal %>% 
-    forecast::forecast(h = 24) %>% 
+    forecast(h = 24) %>% 
     autoplot(unemployment_test_ts %>% filter(year(date) >= 2015), 
              level = 95) +
-    labs(title = "forecast::forecast of Unemployment level with",
+    labs(title = "Forecast of Unemployment level with",
          subtitle = fit_ets_optimal$ETS_optimal,
          y = "Unemployment level", 
          x = "Month") +
     theme_bw() +
+    scale_color_manual(values = color_palette) +
     theme(legend.position = "bottom") +
     guides(level = guide_legend(title = "Prediction interval %: "))
 
@@ -802,7 +807,7 @@ ggtsdisplay(Residuals,
 
 fit_arima_optimal %>% 
     augment() %>% 
-    features(.innov, ljung_box, lag = 24, dof = 4) # KVIFOR ER DET FORSKJELLIG SVAR ETTER ENDRING AV LAG OG DOF?????
+    features(.innov, ljung_box, lag = 24, dof = 0) 
 
 
 

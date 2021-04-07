@@ -7,9 +7,16 @@
 #Sys.setenv(X13_PATH = "../x13binary/bin")
 #Sys.setenv(X13_PATH = "../windows_x13/bin")
 
+################################################################################
+############################## Package installation ############################
+################################################################################
 " Installing the X13 binary files needed to perform X13-SEATS decomposition"
 #install.packages("seasonal", type = "source") 
 
+install.packages(c("ffp3", "readxl", "vars", "lubridate",
+                   "magrittr", "tidyverse", "forecast", "feasts",
+                   "janitor", "seasonal", "x13binary", "kableExtra", "tseries",
+                   "urca", "latex2exp", "tsDyn", "bvartools"))
 
 ################################################################################
 ############################## LIBRARIES #######################################
@@ -31,6 +38,7 @@ library(urca)
 library(latex2exp)
 library(tsDyn)
 library(bvartools)
+
 
 
 ###############################################################################
@@ -316,6 +324,29 @@ fc_combined <- fc_x11_seasonal_adjust %>%
     mutate(.model = "ETS formed decomposition") %>% 
     mutate(.mean = .mean + snaive) 
 
+### Training set of formed decomposition forecast
+x11_train <- x11_dcmp %>%
+    pivot_longer(cols = c("seasonal", "trend", "irregular", "unemployed"),
+                 names_to = "components",
+                 values_to = "values") %>% 
+    dplyr::select(date, components, values)
+
+
+
+#### Components facet plot
+x11_train  %>% 
+    filter(components != "seasonaladj") %>% 
+    ggplot() +
+    geom_line(aes(x = date, y = values, col = components)) +
+    facet_grid(vars(components),
+               scales = "free_y") +
+    labs(title = "forecast::forecast with X11 decomposition",
+         subtitle = "Unemployed = Trend + Seasonal + Irregular",
+         y = "Unemployment level",
+         x = "Month") +
+    guides(colour = guide_legend(title = "Model:")) +
+    theme_bw()  +
+    theme(legend.position = "bottom")
 
 ### Seasonal component plot
 
@@ -361,4 +392,104 @@ fc_combined %>%
     theme(legend.position = "bottom") +
     scale_colour_manual(values = color_palette) +
     guides(colour = guide_legend(title = "Series"))
+
+################################################################################
+######### Decomposition tables
+################################################################################
+## Season table
+
+evaluate_forecast(df = fc_x11_season, column = ".mean", train = x11_dcmp_seasonal_train$values, test = x11_dcmp_seasonal_test$values) %>% 
+    kable(caption = "Seasonal component forecast::forecast", digits = 3) %>%
+    kable_classic(full_width = F, html_font = "Times new roman") 
+
+## Seasonal adjusted table
+
+evaluate_forecast(df = fc_x11_seasonal_adjust, column = ".mean", train = x11_dcmp_seasonal_adjusted_train$values, test = x11_dcmp_seasonal_adjusted_test$values) %>% 
+    kable(caption = "Seasonally adjusted component forecast::forecast", digits = 3) %>%
+    kable_classic(full_width = F, html_font = "Times new roman") 
+
+## Decomposition forecast::forecast table
+evaluate_forecast(fc_combined, column = ".mean") %>% 
+    kable(caption = "X11 combined forecast::forecast", digits = 3) %>%
+    kable_classic(full_width = F, html_font = "Times new roman") 
+
+##################################################################################
+################################ ETS model #######################################
+##################################################################################
+
+# Fitting the training set with the best ETS model by minimizing AICc
+fit_ets <- unemployment_train_ts %>%
+    dplyr::select(date, unemployed) %>% 
+    model(ETS_optimal = ETS(unemployed, ic = "aicc"),
+          "ETS(A,A,A)"  = ETS(unemployed ~ error("A") + trend("A") + season("N"),  ic = "aicc")
+    ) 
+fit_ets # Error: Additive, Trend: Additive damped, Seasonal: Additive
+fit_ets_optimal <- unemployment_train_ts %>%
+    dplyr::select(date, unemployed) %>% 
+    model(ETS_optimal = ETS(unemployed)
+    ) 
+
+# Forecast optimal ets
+fc_ets_optimal <-  fit_ets_optimal %>% forecast::forecast(h = 24)
+
+#Plot with prediction intervals
+fit_ets_optimal %>% 
+    forecast(h = 24) %>% 
+    autoplot(unemployment_test_ts %>% filter(year(date) >= 2015), 
+             level = 95) +
+    labs(title = "Forecast of Unemployment level with",
+         subtitle = fit_ets_optimal$ETS_optimal,
+         y = "Unemployment level", 
+         x = "Month") +
+    theme_bw() +
+    scale_color_manual(values = color_palette) +
+    theme(legend.position = "bottom") +
+    guides(level = guide_legend(title = "Prediction interval %: "))
+
+
+## Print coefficients
+tidy(fit_ets) %>% 
+    dplyr::select(-.model) %>%
+    t() %>% 
+    kbl(caption = "Coefficients of ETS(A,Ad,A)", digits = 2) %>%
+    kable_classic(full_width = F, html_font = "Times new roman")
+
+
+## ETS decompositon plot
+fit_ets_optimal %>% 
+    components() %>% 
+    autoplot() +
+    labs(x = "Month",
+         y = "Unemployment level") +
+    theme_bw()
+
+
+## ETS residual plots
+ggtsdisplay(residuals(fit_ets)$.resid, 
+            plot.type = "histogram", 
+            lag.max = 24, 
+            theme = theme_bw(),
+            main = "Residuals of ETS(A,Ad,A) model")
+
+
+
+################################################################################
+########################### ARIMA PREPARATION ##################################
+################################################################################
+
+
+ggtsdisplay(unemployment_train_ts_stationarity$unemployed, 
+            plot.type = "partial", 
+            lag.max = 24, 
+            theme = theme_bw(),
+            main = "Non-stationary Unemployment level in US")
+
+
+# Unitroot KPSS test on unemployed
+unemployment_train_ts_stationarity %>% 
+    features(unemployed, unitroot_kpss)
+
+unemployment_train_ts_stationarity %>% 
+    features(diff_unemployed, unitroot_kpss) # p-value of 10%, no need for more differencing.
+
 

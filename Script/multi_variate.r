@@ -55,11 +55,17 @@ multivariate_data  %>%
 multivariate_data  %>% 
   features(difference(export), unitroot_kpss)
 
+unitroot_kpss(multivariate_data$export)
+unitroot_kpss(multivariate_data$cpi)
+unitroot_kpss(multivariate_data$unemployed)
+
+
+
 # Export: Autocorrelation plots after difference
 
-diff_ex <- diff(diff((multivariate_data$export)))
-diff_cpi <- diff(diff((multivariate_data$cpi)))
-diff_unemp <- diff((multivariate_data$unemployed)) 
+diff_ex <- diff(multivariate_data$export)
+diff_cpi <- diff(multivariate_data$cpi)
+diff_unemp <- diff(multivariate_data$unemployed)
 
 unitroot_kpss(diff_ex)
 unitroot_kpss(diff_cpi)
@@ -116,7 +122,11 @@ forecast_level  %>%
   scale_colour_manual(values=c("#56B4E9", "orange")) +
   guides(colour = guide_legend(title = "Series"))
 
+### Confirming stationarity BIC optimized
 
+tseries::adf.test((fc_multivariate_var %>%  dplyr::filter(.model == "VAR_aicc"))$.mean_diff_unemployed)
+
+tseries::adf.test((fc_multivariate_var %>%  dplyr::filter(.model == "VAR_bic"))$.mean_diff_unemployed)
 
 ##################################################################################
 ####################### Multivariate forecast accuracy: VAR ######################
