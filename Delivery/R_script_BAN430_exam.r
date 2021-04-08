@@ -731,9 +731,9 @@ fc_arima_optimal %>%  accuracy(unemployment_test_ts %>% as_tsibble()) %>%
 
 
 
-###############################################################################
-################## Stationarity test: Exports and CPI #########################
-###############################################################################
+################################################################################
+################## Stationarity test: Exports and CPI ##########################
+################################################################################
 
 # Joining unemployment data with consumer price index (cpi) and export
 multivariate_data <- unemployment_train_ts %>% 
