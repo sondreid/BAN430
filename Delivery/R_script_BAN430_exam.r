@@ -966,7 +966,7 @@ ggtsdisplay(Residuals,
             plot.type = "histogram", 
             lag.max = 24, 
             theme = theme_bw(),
-            main = "Residuals of ARIMA model with deterministic linear terms")
+            main = "Residuals of ARIMA model with deterministic trend term")
 
 
 ###################################################################################################
@@ -1011,13 +1011,13 @@ fc_fourier_table %>%
   kable_classic(full_width = F, html_font = "Times new roman")
 
 
-## Residual
-Residuals <- (fit_fourier %>% augment())$.innov
+## Residual of model with Fourier(K5) terms 
+Residuals <- (fit_fourier %>% augment() %>% filter(.model == "Fourier K5"))$.innov
 ggtsdisplay(Residuals, 
             plot.type = "histogram", 
             lag.max = 24, 
             theme = theme_bw(),
-            main = "Residuals of ARIMA model with fourier  terms")
+            main = "Residuals of ARIMA model with fourier K5 terms")
 
 
 #######################################################################################################
