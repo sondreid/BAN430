@@ -75,10 +75,14 @@ unemployment <- unemp_df  %>%
     filter(year(date) >= 2000 & year(date) <= 2019)   %>% 
     dplyr::select(date, unemployed, seasonal_unemployed)
 
+unemployment_with_COVID19 <- unemp_df  %>% 
+    mutate(date = yearmonth(date))  %>% 
+    filter(year(date) >= 2000 & year(date) <= 2020)   %>% 
+    dplyr::select(date, unemployed, seasonal_unemployed)
 ###############################################################################
 ############################ LOAD DATA ########################################
 ###############################################################################
-#save(unemployment, cpi_data, export_data, file =  "../Data/unemployment_cpi_exports.Rdata" )
+#save(unemployment, cpi_data, export_data, unemployment_with_COVID19, file =  "../Data/unemployment_cpi_exports.Rdata" )
 load(file = "../Data/unemployment_cpi_exports.Rdata")
 
 

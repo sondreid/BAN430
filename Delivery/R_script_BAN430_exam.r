@@ -1,5 +1,5 @@
-###############################################################################
-################            BAN430 exam R script                  #############
+################################################################################
+################            BAN430 exam R script                  ##############
 ################################################################################
 
 
@@ -11,9 +11,9 @@
 
 " Uncomment to install the packages used in this script"
 #install.packages(c("ffp3", "readxl", "vars", "lubridate",
- #                  "magrittr", "tidyverse", "forecast", "feasts",
- #                  "janitor", "seasonal", "x13binary", "kableExtra", "tseries",
- #                  "urca", "latex2exp", "tsDyn", "bvartools"))
+#                   "magrittr", "tidyverse", "forecast", "feasts",
+#                   "janitor", "seasonal", "x13binary", "kableExtra", "tseries",
+#                   "urca", "latex2exp", "tsDyn", "bvartools"))
 
 
 
@@ -39,19 +39,20 @@ library(latex2exp)
 library(tsDyn)
 library(bvartools)
 
+
 ## Check X13 binary
 checkX13()
 
-###############################################################################
-############################ LOAD DATA ########################################
-###############################################################################
+################################################################################
+############################ LOAD DATA #########################################
+################################################################################
 
 load(file = "unemployment_cpi_exports.Rdata")
 
 
-#################################################################################
-########################### Time series data sets ###############################
-#################################################################################
+################################################################################
+########################### Time series data sets ##############################
+################################################################################
    
 unemployment_train <- unemployment  %>% 
     filter(year(date) <= 2017)  %>% 
@@ -77,11 +78,11 @@ export_train <-
     as_tsibble(index = date) %>% 
     filter(year(date) <= 2017)
 
-###################################################################################
-############################ Descriptive statistics ################################
-###################################################################################
+################################################################################
+############################ Descriptive statistics ############################
+################################################################################
 
-unemp_df %>%
+unemployment_with_COVID19 %>%
     mutate(date = yearmonth(date))  %>% 
     filter(year(date) >= 2000)   %>% 
     dplyr::select(date, unemployed, seasonal_unemployed)   %>% 
@@ -142,9 +143,8 @@ unemployment_train  %>%
     kbl(caption = "Summary statistics of unemployment level in US") %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
-
-
-ggtsdisplay(unemployment_train$unemployed, 
+Unemployment <- unemployment_train$unemployed
+ggtsdisplay(Unemployment, 
             plot.type = "histogram", 
             lag.max = 24, 
             theme = theme_bw(),
@@ -321,19 +321,19 @@ x11_seasonal_adjust <- x11_dcmp %>%
           Arima = ARIMA(seasonaladj ~ PDQ(0,0,0), stepwise = FALSE, approximation = FALSE),
           ETS   = ETS(seasonaladj ~ season("N"), ic = "aicc"))
 # Forecasts of seasonal component
-fc_x11_season <- x11_season %>% forecast::forecast(h = 24)
+fc_x11_season <- x11_season %>% forecast(h = 24)
 #Forecast of seasonally adjusted component
-fc_x11_seasonal_adjust <- x11_seasonal_adjust %>% forecast::forecast(h = 24)
+fc_x11_seasonal_adjust <- x11_seasonal_adjust %>% forecast(h = 24)
 # Formed decomposition forecastr
 fc_combined <- fc_x11_season %>% left_join(fc_x11_seasonal_adjust, by = c("date", ".model"))
 
 # Filter out SNaive forecast from seasonal component forecast
 snaive  <-  (fc_x11_season %>% filter(.model == "SNaive"))$.mean
 
-# Add ETS and SNaive forecast
+# Add ETS model from seasonal adjusted component and SNaive from seasonal component forecasts
 fc_combined <- fc_x11_seasonal_adjust %>% 
     filter(.model %in% c("ETS")) %>% 
-    mutate(.model = "ETS formed decomposition") %>% 
+    mutate(.model = "Formed decomposition forecast") %>% 
     mutate(.mean = .mean + snaive) 
 
 ### Training set of formed decomposition forecast
@@ -352,7 +352,7 @@ x11_train  %>%
     geom_line(aes(x = date, y = values, col = components)) +
     facet_grid(vars(components),
                scales = "free_y") +
-    labs(title = "forecast::forecast with X11 decomposition",
+    labs(title = "X11 decomposition",
          subtitle = "Unemployed = Trend + Seasonal + Irregular",
          y = "Unemployment level",
          x = "Month") +
@@ -369,7 +369,7 @@ fc_x11_season  %>%
     geom_line(aes(x = date, y = values, color = "Original data"), data = x11_dcmp_test %>%  filter(year(date) > 2014, components == "seasonal")) +
     geom_line(aes(x = date, y = .mean, color = .model)) + 
     theme_bw() + 
-    labs(title = "Seasonal component forecast::forecast", y = "Seasonal unemployment level", 
+    labs(title = "Seasonal component forecast", y = "Seasonal unemployment level", 
          x = "Month",
          subtitle = TeX("$\\hat{S_t}$")) +
     theme(legend.position = "bottom") +
@@ -391,50 +391,48 @@ fc_x11_seasonal_adjust  %>%
     guides(colour = guide_legend(title = "Series"))
 
 
-### Plot combined decomposition forecast::forecasting
+### Plot combined decomposition forecasting
 
 fc_combined %>% 
     ggplot() + 
-    geom_line(aes(x = date, y = .mean, color = .model)) + 
+    geom_line(aes(x = date, y = .mean, color = "Formed forecast")) + 
     geom_line(aes(x = date, y = unemployed, color = "Original data"), data = unemployment_test_ts %>%  filter(year(date) > 2014)) +
     theme_bw() + 
-    labs(title = "X11 forecast::forecast", y = "Seasonal unemployment level", 
+    labs(title = "Formed forecast with X11 decomposition", y = "Seasonal unemployment level", 
          x = "Month",
          subtitle = TeX("$\\hat{y_t} = \\hat{S_t} + \\hat{A_t} $")) +
     theme(legend.position = "bottom") +
-    scale_colour_manual(values = color_palette) +
+    scale_colour_manual(values = c("orange", "black")) +
     guides(colour = guide_legend(title = "Series"))
 
 ################################################################################
 ######### Decomposition tables
 ################################################################################
-## Season table
 
+## Season table
 evaluate_forecast(df = fc_x11_season, column = ".mean", train = x11_dcmp_seasonal_train$values, test = x11_dcmp_seasonal_test$values) %>% 
-    kable(caption = "Seasonal component forecast::forecast", digits = 3) %>%
+    kable(caption = "Seasonal component forecast", digits = 3) %>%
     kable_classic(full_width = F, html_font = "Times new roman") 
 
 ## Seasonal adjusted table
-
 evaluate_forecast(df = fc_x11_seasonal_adjust, column = ".mean", train = x11_dcmp_seasonal_adjusted_train$values, test = x11_dcmp_seasonal_adjusted_test$values) %>% 
-    kable(caption = "Seasonally adjusted component forecast::forecast", digits = 3) %>%
+    kable(caption = "Seasonally adjusted component forecast", digits = 3) %>%
     kable_classic(full_width = F, html_font = "Times new roman") 
 
 ## Decomposition forecast::forecast table
 evaluate_forecast(fc_combined, column = ".mean") %>% 
-    kable(caption = "X11 combined forecast::forecast", digits = 3) %>%
+    kable(caption = "Formed X11 decomposition forecast", digits = 3) %>%
     kable_classic(full_width = F, html_font = "Times new roman") 
 
-##################################################################################
-################################ ETS model #######################################
-##################################################################################
+################################################################################
+################################ ETS model #####################################
+################################################################################
 
 # Fitting the training set with the best ETS model by minimizing AICc
 fit_ets <- unemployment_train_ts %>%
     dplyr::select(date, unemployed) %>% 
-    model(ETS_optimal = ETS(unemployed, ic = "aicc"),
-          "ETS(A,A,A)"  = ETS(unemployed ~ error("A") + trend("A") + season("N"),  ic = "aicc")
-    ) 
+    model(ETS_optimal = ETS(unemployed, ic = "aicc"))
+    
 fit_ets # Error: Additive, Trend: Additive damped, Seasonal: Additive
 fit_ets_optimal <- unemployment_train_ts %>%
     dplyr::select(date, unemployed) %>% 
@@ -442,7 +440,7 @@ fit_ets_optimal <- unemployment_train_ts %>%
     ) 
 
 # Forecast optimal ets
-fc_ets_optimal <-  fit_ets_optimal %>% forecast::forecast(h = 24)
+fc_ets_optimal <-  fit_ets_optimal %>% forecast(h = 24)
 
 #Plot with prediction intervals
 fit_ets_optimal %>% 
@@ -477,7 +475,8 @@ fit_ets_optimal %>%
 
 
 ## ETS residual plots
-ggtsdisplay(residuals(fit_ets)$.resid, 
+Residuals <- residuals(fit_ets)$.resid
+ggtsdisplay(Residuals, 
             plot.type = "histogram", 
             lag.max = 24, 
             theme = theme_bw(),
@@ -494,27 +493,38 @@ unemployment_train_ts_stationarity <- unemployment_train_ts %>%
            diff_unemployed        = difference(unemployed),
            diff_diff_season_unemployed = difference(diff_season_unemployed))
 
-
+# Display ACF and PACF  on Unemployment level in US
 ggtsdisplay(unemployment_train_ts_stationarity$unemployed, 
             plot.type = "partial", 
             lag.max = 24, 
             theme = theme_bw(),
             main = "Non-stationary Unemployment level in US")
 
-
 # Unitroot KPSS test on unemployed
 unemployment_train_ts_stationarity %>% 
-    features(unemployed, unitroot_kpss)
+    features(unemployed, unitroot_kpss) # P-value of 1%, non-stationary
 
+# Display ACF and PACF after seasonal difference on Unemployment level in US
+ggtsdisplay(unemployment_train_ts_stationarity$diff_season_unemployed, 
+            plot.type = "partial", 
+            lag.max = 24, 
+            theme = theme_bw(),
+            main = "Seasonal differenced Unemployment level in US")
+
+# Unitroot KPSS test on seasonal differenced Unemployment level in US
 unemployment_train_ts_stationarity %>% 
-    features(diff_unemployed, unitroot_kpss) # p-value of 10%, no need for more differencing.
+  features(diff_season_unemployed, unitroot_kpss) # P-value of 1%, non-stationary
 
-# Seasonal difference and first order difference solves stationarity issue
+# First order seasonal difference and first order non-seasonal difference solves non-stationarity issue
 ggtsdisplay(unemployment_train_ts_stationarity$diff_diff_season_unemployed, 
             plot.type = "partial", 
             lag.max = 24, 
             theme = theme_bw(),
             main = "Difference of seasonal differenced Unemployment level in US")
+
+# Unitroot KPSS test on differenced seasonal differenced Unemployment level in US
+unemployment_train_ts_stationarity %>% 
+    features(diff_diff_season_unemployed, unitroot_kpss) # P-value of 10%, indicating stationarity
 
 # Determine optimal arima fit based on training data while optimizing aicc
 fit_arima_optimal <- unemployment_train_ts %>% 
@@ -528,7 +538,7 @@ fit_arima_optimal
 
 ## Forecast using the optimal arima model
 fc_arima_optimal <- fit_arima_optimal %>% 
-    forecast::forecast(h = 24)
+    forecast(h = 24)
 
 fc_arima_optimal %>% 
     autoplot(unemployment_test_ts %>% filter(year(date) >= 2015), 
@@ -545,7 +555,8 @@ fc_arima_optimal %>%
 
 
 ## Residual plot of optimal arima model
-ggtsdisplay(augment(fit_arima_optimal)$.resid, 
+Residuals <- augment(fit_arima_optimal)$.resid
+ggtsdisplay(Residuals, 
             plot.type = "histogram", 
             lag.max = 24, 
             theme = theme_bw(),
@@ -558,8 +569,10 @@ fit_arima_optimal %>%
 
 
 ## Forecasting performance metrics
-
-fc_arima_optimal %>%  accuracy(unemployment_test %>% as_tsibble())
+fc_arima_optimal %>%  accuracy(unemployment_test_ts %>% as_tsibble()) %>% 
+  dplyr::select(Model = .model, RMSE, MASE, MAE, MAPE, RMSSE) %>% 
+  kbl(caption = "ARIMA(5,1,0)(0,1,1)12 forecast", digits = 2) %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
 
 
 ###############################################################################
@@ -587,22 +600,22 @@ ggtsdisplay(multivariate_data$export,
             theme = theme_bw(),
             main = "Exports")
 
-
+# Unitroot KPSS test of CPI
 multivariate_data  %>% 
-    features(cpi, unitroot_kpss)
+    features(cpi, unitroot_kpss) # P-value of 1.26%, non-stationarity issue
 
-# CPI: KPSS test. Outcome: 10% p-value, no need for further differencing
+# Unitroot KPSS test of Export
 multivariate_data  %>% 
-    features(export, unitroot_kpss)
+    features(export, unitroot_kpss) # P-value of 1%, non-stationarity issue
 
 unitroot_kpss(multivariate_data$export) # Export: KPSS test. Outcome: 1% p-value, needs differencing
 unitroot_kpss(multivariate_data$cpi)    # CPI: KPSS test. Outcome: 1.26% p-value, needs differencing 
 unitroot_kpss(multivariate_data$unemployed) #Unemployewd: Outcome 1 % p-value, needs differencing
 
 ## Unit root KPSS tests after differencing
-unitroot_kpss(diff(multivariate_data$export))
-unitroot_kpss(diff(multivariate_data$cpi))
-unitroot_kpss(diff(multivariate_data$unemployed))
+unitroot_kpss(diff(multivariate_data$export)) # Differencing solves stationarity issue
+unitroot_kpss(diff(multivariate_data$cpi)) # Differencing solves stationarity issue
+unitroot_kpss(diff(multivariate_data$unemployed)) # Differencing solves stationarity issue
 
 # CPI: Autocorrelation plots after difference
 ggtsdisplay(difference(multivariate_data$cpi), 
