@@ -1193,6 +1193,7 @@ generate_y <- function(fit, n) {
 }
 
 ### Example plot of a generated series based on optimal arima fit #####
+set.seed(12345)
 data.frame(y = generate_y(fit_arima_optimal, 216)[1:216], date = unemployment_train_ts$date) %>% as_tsibble()  %>% 
   ggplot() +
   geom_line(aes(x = date, y = y, color = "Generated series")) +
@@ -1301,17 +1302,16 @@ conclusion_table <-
     fc_fourier_table %>% arrange(MASE) %>% slice(1)
     ) %>% 
   rename("Model" = .model) %>% 
-  
   bind_rows(
     data.frame(Model = "Multivariate VECM model VAR(10)", 
                Type = "Test", 
                RMSE = RMSE(vecm_resids),
                MAE =  MAE(vecm_resids),
-               MAPE = fabletools:: MAPE(.resid = vecm_resids, .actual = c(unemployment_test$unemployed)),
+               MAPE = fabletools::MAPE(.resid = vecm_resids, .actual = c(unemployment_test$unemployed)),
                MASE = MASE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12),
                RMSSE = RMSSE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12)),
     mse_weighted_fc,
-    evaluate_forecast(fc_combined, ".mean") %>% slice(1) %>% mutate(Model = "ETS decompositon")
+    evaluate_forecast(fc_combined, column = ".mean") %>% slice(1) %>% mutate(Model = "ETS decompositon")
   ) %>% 
   dplyr:: select(Model, RMSE, MASE, MAE, MAPE, RMSSE)   %>% 
   arrange(MASE)
