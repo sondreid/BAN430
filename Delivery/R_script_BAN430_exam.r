@@ -293,6 +293,7 @@ x11_dcmp %>%
 ################################################################################
 # Choosing X11 because of lowest RMSE
 
+# Evaluation of forecast accuracy function
 evaluate_forecast <- function(df, 
                               train = unemployment_train_ts$unemployed, 
                               test = unemployment_test$unemployed, column) {
@@ -326,39 +327,53 @@ evaluate_forecast <- function(df,
 }
 
 
+
 ################################################################################
-######### Train and Test set of seasonal and seasonal adjusted components
+####### Train and Test set of seasonal and seasonal adjusted components ########
 ################################################################################
-# Decomposed in seasonal, trend and irregularities of testset
-# Testset of the best decomposition method
-x11_seas_test <- seas(ts(unemployment %>% dplyr::select(unemployed), 
+
+# Decomposed in seasonal, trend and irregularities of test set
+# Test set of the best decomposition method
+x11_seas_test <- seas(ts(unemployment %>% 
+                           dplyr::select(unemployed), 
                          start = c("2000"), 
                          frequency = 12), 
                       x11 = "")
 
+
+# x11 decomposition test
 x11_dcmp_test <- data.frame(x11_seas_test) %>%
-    left_join(dplyr::select(unemployment_test_ts, unemployed), by = "date") %>% 
-    dplyr::select(-adjustfac, -final,)  %>% 
+    left_join(dplyr::select(unemployment_test_ts, unemployed), 
+              by = "date") %>% 
+    dplyr::select(-adjustfac, -final)  %>% 
     mutate(date = yearmonth(date)) %>% 
-    as_tsibble(index = date)  %>% 
+    as_tsibble(index = date) %>% 
     pivot_longer(cols = seasonal:unemployed,
                  names_to = "components",
                  values_to = "values") 
-# Test sets
+
+
+# x11 seasonal component train set
 x11_dcmp_seasonal_train <- x11_dcmp_test %>% 
     filter(components == "seasonal" & year(date) <= 2017)
 
+
+# x11 seasonal adjusted train set
 x11_dcmp_seasonal_adjusted_train <- x11_dcmp_test %>% 
     filter(components == "seasonaladj" & year(date) <= 2017)
 
+
+# x11 seasonal component test set
 x11_dcmp_seasonal_test <- x11_dcmp_test %>% 
     filter(components == "seasonal" & year(date) >= 2018)
 
+
+# x11 seasonal adjusted component test set
 x11_dcmp_seasonal_adjusted_test <- x11_dcmp_test %>% 
     filter(components == "seasonaladj" & year(date) >= 2018)
 
 
-# Train with mean, drift, naive, snaive, ets models 
+# Train seasonal component series with mean, drift, naïve, seasonal naive models 
 x11_season <- x11_dcmp %>%
     dplyr::select(seasonal) %>% 
     model(Mean = MEAN(seasonal),
@@ -366,30 +381,48 @@ x11_season <- x11_dcmp %>%
           Naive = NAIVE(seasonal),
           SNaive = SNAIVE(seasonal ~ lag("year")))
 
+
+# Train seasonal adjusted component series with mean, drift, naïve,
+# arima optimal, ets optimal models adjusted for non-seasonal component
 x11_seasonal_adjust <- x11_dcmp %>%
     dplyr::select(seasonaladj) %>% 
     model(Mean = MEAN(seasonaladj),
           Drift = RW(seasonaladj ~ drift()),
           Naive = NAIVE(seasonaladj),
-          Arima = ARIMA(seasonaladj ~ PDQ(0,0,0), stepwise = FALSE, approximation = FALSE),
-          ETS   = ETS(seasonaladj ~ season("N"), ic = "aicc"))
-# Forecasts of seasonal component
+          Arima = ARIMA(seasonaladj ~ PDQ(0,0,0), 
+                        stepwise = FALSE, 
+                        approximation = FALSE),
+          ETS   = ETS(seasonaladj ~ season("N"), 
+                      ic = "aicc"))
+
+
+# Forecasts of seasonal component models
 fc_x11_season <- x11_season %>% forecast(h = 24)
-#Forecast of seasonally adjusted component
-fc_x11_seasonal_adjust <- x11_seasonal_adjust %>% forecast(h = 24)
-# Formed decomposition forecastr
-fc_combined <- fc_x11_season %>% left_join(fc_x11_seasonal_adjust, by = c("date", ".model"))
+
+
+#Forecast of seasonally adjusted component models
+fc_x11_seasonal_adjust <- x11_seasonal_adjust %>% 
+  forecast(h = 24)
+
+
+# Formed decomposition forecast <- y = S + A
+fc_combined <- fc_x11_season %>% 
+  left_join(fc_x11_seasonal_adjust, by = c("date", ".model"))
+
 
 # Filter out SNaive forecast from seasonal component forecast
 snaive  <-  (fc_x11_season %>% filter(.model == "SNaive"))$.mean
 
-# Add ETS model from seasonal adjusted component and SNaive from seasonal component forecasts
+
+# Add ETS model from seasonal adjusted component and SNaive from seasonal 
+# component forecasts
 fc_combined <- fc_x11_seasonal_adjust %>% 
     filter(.model %in% c("ETS")) %>% 
     mutate(.model = "Formed decomposition forecast") %>% 
     mutate(.mean = .mean + snaive) 
 
-### Training set of formed decomposition forecast
+
+# Training set of formed decomposition forecast
 x11_train <- x11_dcmp %>%
     pivot_longer(cols = c("seasonal", "trend", "irregular", "unemployed"),
                  names_to = "components",
@@ -397,8 +430,7 @@ x11_train <- x11_dcmp %>%
     dplyr::select(date, components, values)
 
 
-
-#### Components facet plot
+# Components facet plot
 x11_train  %>% 
     filter(components != "seasonaladj") %>% 
     ggplot() +
@@ -413,16 +445,26 @@ x11_train  %>%
     theme_bw()  +
     theme(legend.position = "bottom")
 
-### Seasonal component plot
 
+# Color palette
 color_palette <- c("#000000", "#E69F00", "#56B4E9", "#009E73",
                    "#0072B2", "#D55E00", "#CC79A7")
+
+
+# Seasonal component forecast
 fc_x11_season  %>% 
     ggplot() + 
-    geom_line(aes(x = date, y = values, color = "Original data"), data = x11_dcmp_test %>%  filter(year(date) > 2014, components == "seasonal")) +
-    geom_line(aes(x = date, y = .mean, color = .model)) + 
+    geom_line(aes(x = date, 
+                  y = values, 
+                  color = "Original data"), 
+              data = x11_dcmp_test %>% 
+                filter(year(date) > 2014, components == "seasonal")) +
+    geom_line(aes(x = date, 
+                  y = .mean, 
+                  color = .model)) + 
     theme_bw() + 
-    labs(title = "Seasonal component forecast", y = "Seasonal unemployment level", 
+    labs(title = "Seasonal component forecast", 
+         y = "Seasonal unemployment level", 
          x = "Month",
          subtitle = TeX("$\\hat{S_t}$")) +
     theme(legend.position = "bottom") +
@@ -430,75 +472,102 @@ fc_x11_season  %>%
     guides(colour = guide_legend(title = "Series"))
 
 
-## Seasonally adjusted component plot 
-
+# Seasonally adjusted component plot 
 fc_x11_seasonal_adjust  %>% 
     ggplot() + 
-    geom_line(aes(x = date, y = values, color = "Original data"), data = x11_dcmp_test %>%  filter(year(date) > 2014, components == "seasonaladj")) +
-    geom_line(aes(x = date, y = .mean, color = .model)) + 
+    geom_line(aes(x = date, 
+                  y = values, 
+                  color = "Original data"), 
+              data = x11_dcmp_test %>%  
+                filter(year(date) > 2014, components == "seasonaladj")) +
+    geom_line(aes(x = date, 
+                  y = .mean, 
+                  color = .model)) + 
     theme_bw() + 
-    labs(title = "Seasonally adjusted component forecast::forecast", y = "Seasonal unemployment level", x = "Month", 
+    labs(title = "Seasonally adjusted component forecast::forecast", 
+         y = "Seasonal unemployment level", 
+         x = "Month", 
          subtitle = TeX("$\\hat{A_t} = \\hat{T_t} + \\hat{R_t} $")) +
     theme(legend.position = "bottom") +
     scale_colour_manual(values = color_palette) +
     guides(colour = guide_legend(title = "Series"))
 
 
-### Plot combined decomposition forecasting
-
+# Formed decomposition forecast plot
 fc_combined %>% 
     ggplot() + 
-    geom_line(aes(x = date, y = .mean, color = "Formed forecast")) + 
-    geom_line(aes(x = date, y = unemployed, color = "Original data"), data = unemployment_test_ts %>%  filter(year(date) > 2014)) +
+    geom_line(aes(x = date, 
+                  y = .mean, 
+                  color = "Formed forecast")) + 
+    geom_line(aes(x = date, 
+                  y = unemployed, 
+                  color = "Original data"), 
+              data = unemployment_test_ts %>% 
+                filter(year(date) > 2014)) +
     theme_bw() + 
-    labs(title = "Formed forecast with X11 decomposition", y = "Seasonal unemployment level", 
+    labs(title = "Formed forecast with X11 decomposition", 
+         y = "Seasonal unemployment level", 
          x = "Month",
          subtitle = TeX("$\\hat{y_t} = \\hat{S_t} + \\hat{A_t} $")) +
     theme(legend.position = "bottom") +
     scale_colour_manual(values = c("orange", "black")) +
     guides(colour = guide_legend(title = "Series"))
 
+
+
 ################################################################################
-######### Decomposition tables
+############## Decomposition forecast accuarcy tables ##########################
 ################################################################################
 
-## Season table
-evaluate_forecast(df = fc_x11_season, column = ".mean", train = x11_dcmp_seasonal_train$values, test = x11_dcmp_seasonal_test$values) %>% 
+# Season accuracy table
+evaluate_forecast(df = fc_x11_season, 
+                  column = ".mean", 
+                  train = x11_dcmp_seasonal_train$values, 
+                  test = x11_dcmp_seasonal_test$values) %>% 
     kable(caption = "Seasonal component forecast", digits = 3) %>%
     kable_classic(full_width = F, html_font = "Times new roman") 
 
-## Seasonal adjusted table
-evaluate_forecast(df = fc_x11_seasonal_adjust, column = ".mean", train = x11_dcmp_seasonal_adjusted_train$values, test = x11_dcmp_seasonal_adjusted_test$values) %>% 
+
+# Seasonal adjusted accuracy table
+evaluate_forecast(df = fc_x11_seasonal_adjust, 
+                  column = ".mean", 
+                  train = x11_dcmp_seasonal_adjusted_train$values, 
+                  test = x11_dcmp_seasonal_adjusted_test$values) %>% 
     kable(caption = "Seasonally adjusted component forecast", digits = 3) %>%
     kable_classic(full_width = F, html_font = "Times new roman") 
 
-## Decomposition forecast::forecast table
-evaluate_forecast(fc_combined, column = ".mean") %>% 
+
+# Formed decomposition forecast accuracy table
+evaluate_forecast(fc_combined, 
+                  column = ".mean") %>% 
     kable(caption = "Formed X11 decomposition forecast", digits = 3) %>%
     kable_classic(full_width = F, html_font = "Times new roman") 
+
+
 
 ################################################################################
 ################################ ETS model #####################################
 ################################################################################
 
 # Fitting the training set with the best ETS model by minimizing AICc
-fit_ets <- unemployment_train_ts %>%
-    dplyr::select(date, unemployed) %>% 
-    model(ETS_optimal = ETS(unemployed, ic = "aicc"))
-    
-fit_ets # Error: Additive, Trend: Additive damped, Seasonal: Additive
 fit_ets_optimal <- unemployment_train_ts %>%
-    dplyr::select(date, unemployed) %>% 
-    model(ETS_optimal = ETS(unemployed)
-    ) 
+  dplyr::select(date, unemployed) %>% 
+  model(ETS_optimal = ETS(unemployed)) 
 
-# Forecast optimal ets
+
+# Optimal ETS model(Error: Additive, Trend: Additive damped, Seasonal: Additive)
+fit_ets_optimal 
+
+
+# Forecast the optimal ETS model
 fc_ets_optimal <-  fit_ets_optimal %>% forecast(h = 24)
 
-#Plot with prediction intervals
+
+# Plot optimal ETS model with 95% prediction intervals
 fit_ets_optimal %>% 
     forecast(h = 24) %>% 
-    autoplot(unemployment_test_ts %>% filter(year(date) >= 2015), 
+    autoplot(unemployment_test_ts %>% 
+               filter(year(date) >= 2015), 
              level = 95) +
     labs(title = "Forecast of Unemployment level with",
          subtitle = fit_ets_optimal$ETS_optimal,
@@ -510,7 +579,7 @@ fit_ets_optimal %>%
     guides(level = guide_legend(title = "Prediction interval %: "))
 
 
-## Print coefficients
+# Print ETS model's coefficients
 tidy(fit_ets) %>% 
     dplyr::select(-.model) %>%
     t() %>% 
@@ -518,7 +587,7 @@ tidy(fit_ets) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
 
-## ETS decompositon plot
+# ETS decomposition plot
 fit_ets_optimal %>% 
     components() %>% 
     autoplot() +
@@ -527,7 +596,7 @@ fit_ets_optimal %>%
     theme_bw()
 
 
-## ETS residual plots
+# ETS residual plots
 Residuals <- residuals(fit_ets)$.resid
 ggtsdisplay(Residuals, 
             plot.type = "histogram", 
