@@ -3,8 +3,9 @@
 ################################################################################
 
 
+
 ################################################################################
-############################## Package installation ############################
+######################### Package installation #################################
 ################################################################################
 " Installing the X13 binary files needed to perform X13-SEATS decomposition"
 #install.packages("seasonal", type = "source") 
@@ -14,7 +15,6 @@
 #                   "magrittr", "tidyverse", "forecast", "feasts",
 #                   "janitor", "seasonal", "x13binary", "kableExtra", "tseries",
 #                   "urca", "latex2exp", "tsDyn", "bvartools"))
-
 
 
 
@@ -39,9 +39,10 @@ library(latex2exp)
 library(tsDyn)
 library(bvartools)
 
-
 ## Check X13 binary
 checkX13()
+
+
 
 ################################################################################
 ############################ LOAD DATA #########################################
@@ -50,45 +51,63 @@ checkX13()
 load(file = "unemployment_cpi_exports.Rdata")
 
 
+
 ################################################################################
-########################### Time series data sets ##############################
+####################### Time series data sets ##################################
 ################################################################################
-   
+
+# Train set seasonal and seasonal adjusted Unemployment level in the US  
 unemployment_train <- unemployment  %>% 
     filter(year(date) <= 2017)  %>% 
     dplyr::select(date, unemployed, seasonal_unemployed)
 
+
+# Test set seasonal and seasonal adjusted Unemployment level in the US  
 unemployment_test <- unemployment  %>% 
     filter(year(date) > 2017)  %>% 
     dplyr::select(date, unemployed, seasonal_unemployed)
 
+
+# Train time series 
 unemployment_train_ts <-  unemployment_train %>% 
     as_tsibble(index = date) 
 
+
+# Test time series
 unemployment_test_ts <- unemployment %>% 
     as_tsibble(index = date)
 
+
+# Train set consumer price index in the US
 cpi_train <- 
     cpi_data  %>% 
     as_tsibble(index = date) %>% 
     filter(year(date) <= 2017)
 
+# Train set export of the US
 export_train <- 
     export_data  %>% 
     as_tsibble(index = date) %>% 
     filter(year(date) <= 2017)
 
+
+
 ################################################################################
-############################ Descriptive statistics ############################
+########################## Descriptive statistics ##############################
 ################################################################################
 
+# Time series from 2000 to 2020 with COVID19 implication
 unemployment_with_COVID19 %>%
     mutate(date = yearmonth(date))  %>% 
     filter(year(date) >= 2000)   %>% 
     dplyr::select(date, unemployed, seasonal_unemployed)   %>% 
     ggplot() +
-    geom_line(aes(x = date, y = unemployed, col = "Unadjusted seasonal")) +
-    geom_line(aes(x = date, y = seasonal_unemployed, col = "Adjusted seasonal")) +
+    geom_line(aes(x = date, 
+                  y = unemployed, 
+                  col = "Unadjusted seasonal")) +
+    geom_line(aes(x = date, 
+                  y = seasonal_unemployed, 
+                  col = "Adjusted seasonal")) +
     labs(title = "Unemployment in the USA",
          subtitle = "[2000-2020]",
          y = "Unemployment level",
@@ -97,10 +116,16 @@ unemployment_with_COVID19 %>%
     theme_bw() +
     theme(legend.position = "bottom")
 
+
+# Time series from 2000 to 2019 without COVID19 year 2020
 unemployment %>% 
     ggplot() +
-    geom_line(aes(x = date, y = unemployed, col = "Unadjusted seasonal")) +
-    geom_line(aes(x = date, y = seasonal_unemployed, col = "Adjusted seasonal")) +
+    geom_line(aes(x = date, 
+                  y = unemployed, 
+                  col = "Unadjusted seasonal")) +
+    geom_line(aes(x = date, 
+                  y = seasonal_unemployed, 
+                  col = "Adjusted seasonal")) +
     labs(title = "Unemployment in the USA",
          subtitle = "[2000-2019]",
          y = "Unemployment level",
@@ -110,9 +135,10 @@ unemployment %>%
     theme(legend.position = "bottom")
 
 
-###################################################################################
-############################## Summary statistics #################################
-###################################################################################
+
+################################################################################
+########################### Summary statistics #################################
+################################################################################
 
 # Minimum, 25%-percentile, Mean, Median, 75%-percentile and Maximum by month
 unemployment_train  %>% 
@@ -129,6 +155,7 @@ unemployment_train  %>%
     kbl(caption = "Summary statistics of unemployment level in US") %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
+
 # Summary statistics for the whole period
 unemployment_train  %>% 
     mutate(month = lubridate::month(date))  %>%
@@ -143,12 +170,15 @@ unemployment_train  %>%
     kbl(caption = "Summary statistics of unemployment level in US") %>%
     kable_classic(full_width = F, html_font = "Times new roman")
 
+
+# Unemployment level autocorrelation plot and distribution
 Unemployment <- unemployment_train$unemployed
 ggtsdisplay(Unemployment, 
             plot.type = "histogram", 
             lag.max = 24, 
             theme = theme_bw(),
             main = "Unemployment")
+
 
 # Subseries of the training set
 unemployment_train_ts  %>%  
@@ -161,9 +191,9 @@ unemployment_train_ts  %>%
 
 
 
-###############################################################################################
-##########################  Decomposition by various methods ##################################
-###############################################################################################
+################################################################################
+###################  Decomposition by various methods ##########################
+################################################################################
 
 # x11 season
 x11_seas <- seas(ts(unemployment_train %>% dplyr::select(unemployed), 
@@ -172,10 +202,11 @@ x11_seas <- seas(ts(unemployment_train %>% dplyr::select(unemployed),
                  x11 = "")
 
 
-# x11 season
+# x13 season
 x13_seas <- seas(ts(unemployment_train %>% dplyr::select(unemployed), 
                     start = c("2000"), 
                     frequency = 12))
+
 
 # x11 decomposing with seas
 x11_dcmp <- data.frame(x11_seas) %>%
@@ -185,6 +216,7 @@ x11_dcmp <- data.frame(x11_seas) %>%
     mutate(date = yearmonth(date)) %>% 
     as_tsibble(index = date)
 
+
 # x13 decomposing with seas
 x13_dcmp <- data.frame(x13_seas) %>% 
     left_join(dplyr::select(unemployment_train_ts, unemployed), 
@@ -192,6 +224,7 @@ x13_dcmp <- data.frame(x13_seas) %>%
     dplyr::select(-adjustfac, -final)  %>% 
     mutate(date = yearmonth(date))  %>%
     as_tsibble(index = date)
+
 
 # STL decomposition
 stl_dcmp <- unemployment_train_ts %>%
@@ -201,11 +234,16 @@ stl_dcmp <- unemployment_train_ts %>%
     components()
 
 
-
-# Plot of the X11 decomposition VS Bureau adjustment
+# Plot of the X11 decomposition vs. Bureau seasonal adjustment
 ggplot() +
-    geom_line(aes(x = date, y = seasonal_unemployed, col = "Unemployment US SA"), data = unemployment_train_ts) +
-    geom_line(aes(x = date, y = seasonaladj, col = "x11 SA"), data = x11_dcmp ) +
+    geom_line(aes(x = date, 
+                  y = seasonal_unemployed, 
+                  col = "Unemployment US SA"), 
+              data = unemployment_train_ts) +
+    geom_line(aes(x = date, 
+                  y = seasonaladj, 
+                  col = "x11 SA"), 
+              data = x11_dcmp ) +
     labs(title = "Replication of the seasonal adjusted data",
          y     = "Seasonal Adjusted Unemployment level",
          x     = "Month") +
@@ -215,12 +253,18 @@ ggplot() +
     scale_colour_manual(values=c("black","orange", "red", "orange"))
 
 
-# Compare RMSE to find closest fit to original seasonal adjusted unemployment data of US
+# Decomposition method accuracy
 t(bind_rows(
     "Model" = c("ME", "RMSE", "MAE",  "MPE", "MAPE" ),
-    X11 = c((ts(x11_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]) %>% round(2),
-    X13 = c((ts(x13_dcmp$seasonaladj) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]) %>% round(2),
-    STL = c((ts(stl_dcmp$season_adjust) %>% accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]) %>%  round(2)))  %>% 
+    X11 = c((ts(x11_dcmp$seasonaladj) %>% 
+               accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]) %>% 
+      round(2),
+    X13 = c((ts(x13_dcmp$seasonaladj) %>% 
+               accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]) %>% 
+      round(2),
+    STL = c((ts(stl_dcmp$season_adjust) %>% 
+               accuracy(ts(unemployment_train_ts$seasonal_unemployed)))[1:5]) %>% 
+      round(2)))  %>% 
     janitor::row_to_names(1) %>% 
     kbl(caption = "Evaluation metrics of decomposition methods", digits = 2) %>%
     kable_classic(full_width = F, html_font = "Times new roman")
@@ -242,12 +286,16 @@ x11_dcmp %>%
     guides(colour = FALSE) +
     theme_bw()
 
-########################################################################################
-######################## Forecasting of X11 decomposed series ##########################
-########################################################################################
-# Choosing X11 because of best RMSE
 
-evaluate_forecast <- function(df, train = unemployment_train_ts$unemployed, test = unemployment_test$unemployed, column) {
+
+################################################################################
+################ Forecasting of X11 decomposed series ##########################
+################################################################################
+# Choosing X11 because of lowest RMSE
+
+evaluate_forecast <- function(df, 
+                              train = unemployment_train_ts$unemployed, 
+                              test = unemployment_test$unemployed, column) {
     #' Function that calculates performance metrics for an input dataframe
     #' Calculates a vector of residuals based on the column of the dataframe specified in the 
     #' column parameter. 
@@ -263,10 +311,15 @@ evaluate_forecast <- function(df, train = unemployment_train_ts$unemployed, test
         decompositon_fc_table %<>% bind_rows(
             data.frame(Model = model,
                        RMSE = RMSE(resids),
-                       MASE = MASE(resids, .train = train, .period = 12),
-                       MAE =  MAE(.resid =  resids),
-                       MAPE = fabletools::MAPE(.resid = resids, .actual = test),
-                       RMSSE = RMSSE(resids, .train = train, .period = 12))
+                       MASE = MASE(resids, 
+                                   .train = train, 
+                                   .period = 12),
+                       MAE =  MAE(.resid = resids),
+                       MAPE = fabletools::MAPE(.resid = resids, 
+                                               .actual = test),
+                       RMSSE = RMSSE(resids, 
+                                     .train = train, 
+                                     .period = 12))
         )
     }
     return(decompositon_fc_table %>% arrange(MASE) )
