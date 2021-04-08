@@ -1,7 +1,9 @@
 ################################################################################
-################            BAN430 exam R script                  ##############
+################  $$$       BAN430 exam R script           $$$  ################
 ################################################################################
 
+# Forecasting project of Unemployment level in the US done spring 2021
+# by candidate: 71 & 90
 
 
 ################################################################################
@@ -11,10 +13,23 @@
 #install.packages("seasonal", type = "source") 
 
 " Uncomment to install the packages used in this script"
-#install.packages(c("ffp3", "readxl", "vars", "lubridate",
-#                   "magrittr", "tidyverse", "forecast", "feasts",
-#                   "janitor", "seasonal", "x13binary", "kableExtra", "tseries",
-#                   "urca", "latex2exp", "tsDyn", "bvartools"))
+# install.packages(c("ffp3", 
+#                    "readxl", 
+#                    "vars", 
+#                    "lubridate",
+#                    "magrittr", 
+#                    "tidyverse", 
+#                    "forecast", 
+#                    "feasts",
+#                    "janitor", 
+#                    "seasonal", 
+#                    "x13binary", 
+#                    "kableExtra", 
+#                    "tseries",
+#                    "urca", 
+#                    "latex2exp", 
+#                    "tsDyn", 
+#                    "bvartools"))
 
 
 
@@ -1332,132 +1347,202 @@ comb_mean_fc <- bind_rows(fc_arima_optimal,
 vec_mean_fc <- c(unemployment_test$unemployed - comb_mean_fc$mean_fc) 
 
 
-# Performance metric table
+# Mean weighted forecast accuracy table
 mean_weighted_fc <- bind_cols(
   Model = "Mean weighted",
   RMSE = RMSE(vec_mean_fc),
-  MASE = MASE(.resid =  vec_mean_fc,  .train = c(unemployment_train_ts$unemployed), .period = 12),
+  MASE = MASE(.resid =  vec_mean_fc,  
+              .train = c(unemployment_train_ts$unemployed), 
+              .period = 12),
   MAE = MAE(vec_mean_fc),
-  MAPE = fabletools::MAPE(vec_mean_fc, .actual = c(unemployment_test_ts$unemployed)),
-  RMSSE = RMSSE(.resid =  vec_mean_fc,  .train = c(unemployment_train_ts$unemployed), .period = 12),
+  MAPE = fabletools::MAPE(vec_mean_fc, 
+                          .actual = c(unemployment_test_ts$unemployed)),
+  RMSSE = RMSSE(.resid =  vec_mean_fc,  
+                .train = c(unemployment_train_ts$unemployed), 
+                .period = 12)
   ) 
 
-#######################################################################################################
-#################### Advanced combination method: MSE (Stock and Watson(2001)) ########################
-#######################################################################################################
 
-## Calculate mean squared errors for our chosen models
-mse_arima_optimal <- mean((augment(fit_arima_optimal)$.fitted - unemployment_train_ts$unemployed)^2)
-mse_ets_optimal <- mean((augment(fit_ets_optimal)$.fitted - unemployment_train_ts$unemployed)^2)
-mse_dynamic_arima <- mean((augment(fit_dynamic_arima)$.fitted  - unemployment_train_ts$unemployed)^2)
 
+################################################################################
+##### Advanced combination method: MSE weighted (Stock and Watson(2001)) #######
+################################################################################
+
+# Calculate mean squared errors for our chosen models
+mse_arima_optimal <- mean((augment(fit_arima_optimal)$.fitted 
+                           - unemployment_train_ts$unemployed)^2)
+mse_ets_optimal <- mean((augment(fit_ets_optimal)$.fitted 
+                         - unemployment_train_ts$unemployed)^2)
+mse_dynamic_arima <- mean((augment(fit_dynamic_arima)$.fitted  
+                           - unemployment_train_ts$unemployed)^2)
+
+# Sum of 1/mse[i]
 w_sum <- sum(1/mse_arima_optimal, 1/mse_ets_optimal, 1/mse_dynamic_arima)
 
-## Calculate weights
+
+# Calculate weights for each models
 w_mse_arima_optimal <- (1/mse_arima_optimal)/w_sum
-w_mse_ets_optimal <- (1/mse_ets_optimal)/w_sum
+w_mse_ets_optimal   <- (1/mse_ets_optimal)  /w_sum
 w_mse_dynamic_arima <- (1/mse_dynamic_arima)/w_sum
 
-## Print weights
+
+# Print weights
 w_mse_ets_optimal
 w_mse_arima_optimal
 w_mse_dynamic_arima
 
-comb_mse_fc <- bind_rows(fc_arima_optimal, fc_ets_optimal, fc_dynamic_naive) %>%
+
+# MSE weighted forecast
+comb_mse_fc <- bind_rows(fc_arima_optimal, 
+                         fc_ets_optimal, 
+                         fc_dynamic_naive) %>%
   as_tibble() %>% 
   dplyr::select(-cpi, -export, -Model,-unemployed) %>% 
-  pivot_wider(names_from = .model, values_from = .mean) %>% 
+  pivot_wider(names_from = .model, 
+              values_from = .mean) %>% 
   rowwise() %>% 
   mutate(mse_fc = sum(w_mse_arima_optimal * ARIMA_optimal, 
-                       w_mse_ets_optimal * ETS_optimal, 
-                       w_mse_dynamic_arima * ARIMA_dynamic))
+                      w_mse_ets_optimal * ETS_optimal, 
+                      w_mse_dynamic_arima * ARIMA_dynamic))
 
-vec_mse_fc <- c(unemployment_test$unemployed - comb_mse_fc$mse_fc) # residuals vector
-# Performance metrics table
+
+# Residuals vector
+vec_mse_fc <- c(unemployment_test$unemployed - comb_mse_fc$mse_fc) 
+
+
+# MSE weighted forecast accuracy table
 mse_weighted_fc <- bind_cols(
   Model = "MSE weighted",
   RMSE = RMSE(vec_mse_fc),
-  MASE = MASE(.resid =  vec_mse_fc,  .train = c(unemployment_train_ts$unemployed), .period = 12),
+  MASE = MASE(.resid =  vec_mse_fc,  
+              .train = c(unemployment_train_ts$unemployed), 
+              .period = 12),
   MAE = MAE(vec_mse_fc),
-  MAPE = fabletools::MAPE(vec_mse_fc, .actual = c(unemployment_test_ts$unemployed)),
-  RMSSE = RMSSE(.resid =  vec_mse_fc,  .train = c(unemployment_train_ts$unemployed), .period = 12),
+  MAPE = fabletools::MAPE(vec_mse_fc, 
+                          .actual = c(unemployment_test_ts$unemployed)),
+  RMSSE = RMSSE(.resid =  vec_mse_fc,  
+                .train = c(unemployment_train_ts$unemployed), 
+                .period = 12)
   ) 
 
-#######################################################################################################
-############################## Advanced combination method: AIC #######################################
-#######################################################################################################
 
-## Retrieve aic values for each of our chosen models
+
+################################################################################
+############# Advanced combination method: AIC weighted ########################
+################################################################################
+
+# Retrieve AIC values for each of our chosen models
 aic_fit_arima_optimal <- glance(fit_arima_optimal)$AIC 
 aic_fit_ets_optimal <- glance(fit_ets_optimal)$AIC
 aic_fit_dynamic_arima <- glance(fit_dynamic_arima)$AIC
 
-aic_min <- min(aic_fit_arima_optimal, aic_fit_ets_optimal, aic_fit_dynamic_arima)
 
-delta_w_fit_arima_optimal <- aic_fit_arima_optimal - aic_min
-delta_w_aic_fit_ets_optimal <- aic_fit_ets_optimal - aic_min
+# Finding the minimum AIC value
+aic_min <- min(aic_fit_arima_optimal, 
+               aic_fit_ets_optimal, 
+               aic_fit_dynamic_arima)
+
+
+# Calculating the difference of AIC_i and AIC_min
+delta_w_fit_arima_optimal     <- aic_fit_arima_optimal - aic_min
+delta_w_aic_fit_ets_optimal   <- aic_fit_ets_optimal   - aic_min
 delta_w_aic_fit_dynamic_arima <- aic_fit_dynamic_arima - aic_min
 
+
+# Calculating the exponential 
 exp_delta_w_fit_arima_optimal <- exp(-0.5 * delta_w_fit_arima_optimal)
 exp_delta_w_aic_fit_ets_optimal <- exp(-0.5 * delta_w_aic_fit_ets_optimal)
 exp_delta_w_aic_fit_dynamic_arima <- exp(-0.5 * delta_w_aic_fit_dynamic_arima)
 
+
+# Summing the deltas
 sum_exp_delta_w <- sum(exp_delta_w_fit_arima_optimal, 
                        exp_delta_w_aic_fit_ets_optimal, 
                        exp_delta_w_aic_fit_dynamic_arima)
 
+
+# Calculating the AIC weights for each model
 w_aic_fit_arima_optimal <- exp_delta_w_fit_arima_optimal/sum_exp_delta_w
 w_aic_fit_ets_optimal <- exp_delta_w_aic_fit_ets_optimal/sum_exp_delta_w
 w_aic_fit_dynamic_arima <- exp_delta_w_aic_fit_dynamic_arima/sum_exp_delta_w
 
+
+# AIC weights for each model
 w_aic_fit_arima_optimal
 w_aic_fit_ets_optimal
 w_aic_fit_dynamic_arima
 
-## Combine models
-comb_aic_fc <- bind_rows(fc_arima_optimal, fc_ets_optimal, fc_dynamic_naive) %>%
+
+# AIC weighted forecast
+comb_aic_fc <- bind_rows(fc_arima_optimal, 
+                         fc_ets_optimal, 
+                         fc_dynamic_naive) %>%
   as_tibble() %>% 
   dplyr::select(-cpi, -export, -Model,-unemployed) %>% 
-  pivot_wider(names_from = .model, values_from = .mean) %>% 
+  pivot_wider(names_from = .model, 
+              values_from = .mean) %>% 
   rowwise() %>% 
   mutate(aic_fc = sum(w_aic_fit_arima_optimal * ARIMA_dynamic, 
                       w_aic_fit_ets_optimal * ARIMA_optimal, 
                       w_aic_fit_dynamic_arima * ETS_optimal))
 
-vec_aic_fc <- c(unemployment_test$unemployed - comb_aic_fc$aic_fc) # residuals vector
-#Performance metric table
+
+# Residuals vector
+vec_aic_fc <- c(unemployment_test$unemployed - comb_aic_fc$aic_fc) 
+
+
+# AIC weighted forecast accuracy table
 aic_weighted_fc <- bind_cols(
   Model = "AIC weighted",
   RMSE = RMSE(vec_aic_fc), 
-  MASE = MASE(.resid =  vec_aic_fc,  .train = c(unemployment_train_ts$unemployed), .period = 12),
+  MASE = MASE(.resid =  vec_aic_fc,  
+              .train = c(unemployment_train_ts$unemployed), 
+              .period = 12),
   MAE = MAE(.resid =  vec_aic_fc),
-  MAPE = fabletools::MAPE(.resid =  vec_aic_fc, .actual = c(unemployment_test_ts$unemployed)),
-  RMSSE = RMSSE(.resid =  vec_aic_fc,  .train = c(unemployment_train_ts$unemployed), .period = 12),
+  MAPE = fabletools::MAPE(.resid =  vec_aic_fc, 
+                          .actual = c(unemployment_test_ts$unemployed)),
+  RMSSE = RMSSE(.resid =  vec_aic_fc,  
+                .train = c(unemployment_train_ts$unemployed), 
+                .period = 12),
   ) 
 
 
-#############################################################################################
-#################### Comparison of combinational forecast methods ###########################
-#############################################################################################
 
-## Combine performance metrics
-comparison_combined_forecast_accuracy <- bind_rows(
-  mean_weighted_fc,
-  mse_weighted_fc,
+################################################################################
+############# Comparison of combinational forecast methods #####################
+################################################################################
+
+# Combine performance metrics
+comparison_combined_forecast_accuracy <- bind_rows(mean_weighted_fc,
+                                                   mse_weighted_fc,
   aic_weighted_fc) %>% 
   arrange(MASE)
 
-# Kable table
+
+# Combinational forecasting methods accuracy table
 comparison_combined_forecast_accuracy %>% 
   kbl(caption = "Combined forecast accuracy", digits = 3) %>%
   kable_classic(full_width = F, html_font = "Times new roman")
 
-## Plot combinational forecasts
+
+# Combinational method forecasts
 ggplot() +
-  geom_line(aes(x = date, y = mean_fc, color = "Mean Weighted"), data = comb_mean_fc) +
-  geom_line(aes(x = date, y = mse_fc, color = "MSE Weighted"), data = comb_mse_fc) +
-  geom_line(aes(x = date, y = aic_fc, color = "AIC Weighted"), data = comb_aic_fc) +
-  geom_line(aes(x = date, y = unemployed, color = "Observed unemployment"), data = unemployment_test_ts %>% filter(year(date) >= 2015)) +
+  geom_line(aes(x = date, 
+                y = mean_fc, 
+                color = "Mean Weighted"), 
+            data = comb_mean_fc) +
+  geom_line(aes(x = date, 
+                y = mse_fc, 
+                color = "MSE Weighted"), 
+            data = comb_mse_fc) +
+  geom_line(aes(x = date, 
+                y = aic_fc, 
+                color = "AIC Weighted"), 
+            data = comb_aic_fc) +
+  geom_line(aes(x = date, 
+                y = unemployed, 
+                color = "Observed unemployment"), 
+            data = unemployment_test_ts %>% filter(year(date) >= 2015)) +
   theme_bw() +
   theme(legend.position = "bottom") +
   scale_colour_manual(values = c("red", "orange", "blue", "black")) +
@@ -1473,29 +1558,43 @@ ggplot() +
 
 
 
-########################################################################
-#################### MONTECARLO SIMULATION #############################
-########################################################################
+################################################################################
+######################## MONTE CARLO SIMULATION ################################
+################################################################################
 
-
+# Generating y_t
 generate_y <- function(fit, n) {
-  #' Function that passes the standard deviation of the residuals of our optimal Arima model
-  #' Automatically finds and passes ar and ma terms to the arima.sim (stats package), and
-  #' returns the genereated series
+  #' Function that passes the standard deviation of the residuals of our optim-
+  #' al ARIMA model
+  #' Automatically finds and passes ar and ma terms to the arima.sim (stats pa-
+  #' ckage), and returns the generated series
   sigma <- sd(residuals(fit)$.resid)
-  ar_terms <- (fit  %>% coefficients %>%  filter(str_detect(term, "ar")))$estimate %>% c(.) # AR terms and their coefficients
-  sma_terms <- (fit  %>% coefficients %>%  filter(str_detect(term, "sma")))$estimate %>% c(.)
-  arima_sim_model <- list(order = c(5, 1, 0), ar = ar_terms, sma = sma_terms)
-  y <- arima.sim(n = n, arima_sim_model, sd = sigma)
+  ar_terms <- (fit %>% 
+                 coefficients %>% 
+                 filter(str_detect(term,"ar")))$estimate %>% 
+    c(.) # AR terms and their coefficients
+  sma_terms <- (fit %>% coefficients 
+                %>% filter(str_detect(term, "sma")))$estimate %>% 
+    c(.)
+  arima_sim_model <- list(order = c(5, 1, 0), 
+                          ar = ar_terms, 
+                          sma = sma_terms)
+  y <- arima.sim(n = n, 
+                 arima_sim_model, 
+                 sd = sigma)
   return(y)
 }
 
-### Example plot of a generated series based on optimal arima fit #####
+
+# Example plot of a generated series based on optimal arima fit #####
 set.seed(12345)
-data.frame(y = generate_y(fit_arima_optimal, 216)[1:216], date = unemployment_train_ts$date) %>% as_tsibble()  %>% 
+data.frame(y = generate_y(fit_arima_optimal, 216)[1:216], 
+           date = unemployment_train_ts$date) %>% as_tsibble() %>% 
   ggplot() +
-  geom_line(aes(x = date, y = y, color = "Generated series")) +
-  scale_colour_manual(values=c("black")) +
+  geom_line(aes(x = date, 
+                y = y, 
+                color = "Generated series")) +
+  scale_colour_manual(values = c("black")) +
   theme_bw() + 
   theme(legend.position = "bottom") +    
   labs(title = "Sample generated series from estimated ARIMA model",
@@ -1504,9 +1603,12 @@ data.frame(y = generate_y(fit_arima_optimal, 216)[1:216], date = unemployment_tr
   guides(colour = guide_legend(title = "Series"))
 
 
+# Simulation function
 simulate <- function(fit, R, train_length , h ) {
-    #' Function that generates a new series x based on an arima simulation returned by generate_y. 
-    #' Compares two models, and populates which contains a series of forecast evaluation metrics.
+    #' Function that generates a new series x based on an arima simulation retu-
+    #' rned by generate_y. 
+    #' Compares two models, and populates which contains a series of forecast e-
+    #' valuation metrics.
     #' Returns the populated matrix.
     res <- matrix(0,2,5)
     colnames(res) <- c("RMSE", "MASE", "MAE", "MAPE",  "RMSSE")
@@ -1518,36 +1620,58 @@ simulate <- function(fit, R, train_length , h ) {
         x <- c()
         x[1] <- y[1]
         for (j in 2:(train_length+h)) {
-            x[j] <- 0.5*y[j-1] + 0.5*x[j-1] + rnorm(n = 1, mean = 0, sd = sd(y))
+            x[j] <- 0.5*y[j-1] + 0.5*x[j-1] + rnorm(n = 1, 
+                                                    mean = 0, 
+                                                    sd = sd(y))
         }
         x_e <- x[1:train_length]
         x_t <- x[(train_length+1):(train_length+h)]
-        data_x_y = data.frame(date = (1:train_length), x_e = x_e, y_e = y_e)  %>%  as_tsibble(index = date)
-        var_multi  <- vars:: VAR(data_x_y[,2:3], p  = 1,  type = "const")                              # VAR(1) model
-        arima_uni <- data_x_y  %>% model(Arima =  ARIMA(y_e ~ 0 + pdq(1,0,0) + PDQ(0,0,0)))            # ARIMA pdq(1,1,0) model
+        data_x_y = data.frame(date = (1:train_length), 
+                              x_e = x_e, 
+                              y_e = y_e)  %>%  
+          as_tsibble(index = date)
+        var_multi  <- vars:: VAR(data_x_y[,2:3], 
+                                 p  = 1,  
+                                 type = "const")  # VAR(1) model
+        arima_uni <- data_x_y  %>% 
+          model(Arima = ARIMA(y_e ~ 0 + pdq(1,0,0) + PDQ(0,0,0))) 
+                                                      # ARIMA pdq(1,0,0) model
         var_resids <-   y_t -  predict(var_multi, n.ahead = h)$fcst$y_e[,1]
         arima_resids <- y_t -  (arima_uni %>% forecast(h = h))$.mean                            
         
         res[1,1] <- res[1,1] + RMSE(var_resids)/R     
         res[2,1] <- res[2,1] + RMSE(arima_resids)/R  
 
-        res[1,2] <- res[1,2] + MASE(.resid = var_resids, .train = y_e, .period = 12)/R   
-        res[2,2] <- res[2,2] + MASE(.resid = arima_resids, .train = y_e, .period = 12)/R  
+        res[1,2] <- res[1,2] + MASE(.resid = var_resids, 
+                                    .train = y_e,
+                                    .period = 12)/R   
+        res[2,2] <- res[2,2] + MASE(.resid = arima_resids, 
+                                    .train = y_e, 
+                                    .period = 12)/R  
         
         res[1,3] <- res[1,3] + MAE(.resid = var_resids)/R   
         res[2,3] <- res[2,3] + MAE(.resid = arima_resids)/R   
         
-        res[1,4] <- res[1,4] + fabletools::MAPE(.resid = var_resids, .actual = y_t, .period = 12)/R   
-        res[2,4] <- res[2,4] + fabletools::MAPE(.resid = arima_resids, .actual = y_t, .period = 12)/R   
+        res[1,4] <- res[1,4] + fabletools::MAPE(.resid = var_resids, 
+                                                .actual = y_t, 
+                                                .period = 12)/R   
+        res[2,4] <- res[2,4] + fabletools::MAPE(.resid = arima_resids, 
+                                                .actual = y_t, 
+                                                .period = 12)/R   
         
         
-        res[1,5] <- res[1,5] + RMSSE(.resid = var_resids, .train = y_e, .period = 12)/R   
-        res[2,5] <- res[2,5] + RMSSE(.resid = arima_resids, .train = y_e, .period = 12)/R   
+        res[1,5] <- res[1,5] + RMSSE(.resid = var_resids, 
+                                     .train = y_e, 
+                                     .period = 12)/R   
+        res[2,5] <- res[2,5] + RMSSE(.resid = arima_resids, 
+                                     .train = y_e, 
+                                     .period = 12)/R   
     }
     return(res)
 }
 
 
+# Wrapper function
 wrapperSim <- function(R, sample_size, test_ratio) {
         #' Wrapper function that splits the unemployment series into
         #' test and training lengths based on an input sample length and
@@ -1555,8 +1679,8 @@ wrapperSim <- function(R, sample_size, test_ratio) {
         #' Passes this as parameters to the simulate function
         cl <- parallel::makeCluster(parallel::detectCores())                                                                                         ### Make clusters
         doParallel::registerDoParallel(cl)
-        train_length <- floor(sample_size * (1-test_ratio))
-        h <- ceiling(sample_size* test_ratio)
+        train_length <- floor(sample_size * (1 - test_ratio))
+        h <- ceiling(sample_size * test_ratio)
         print(paste("Training length: ", train_length))
         print(paste("h : ", h))
         start <- (nrow(unemployment_train_ts) - sample_size)
@@ -1568,36 +1692,47 @@ wrapperSim <- function(R, sample_size, test_ratio) {
         return(sim_res)
 }
 
+
 # Sample sizes for simulation
 sample_sizes <- c(50,100, 150, 200)
+
 
 # Add to table
 table <- data.frame()
 
-# Loop through all sample sizes, and perform a Monte Carlo simulation using 1000 samples of y and x
+
+# Loop through all sample sizes, and perform a Monte Carlo simulation using 
+# 1000 samples of y and x
 for (size in sample_sizes) {
-  table <- table %>% rbind(., wrapperSim(R= 1000, sample_size = size, test_ratio = 0.2)) #Populate table for each sample size
+  table <- table %>% 
+    rbind(., wrapperSim(R = 1000, 
+                        sample_size = size, 
+                        test_ratio = 0.2)) # Populate table for each sample size
 }
 
-#### Print kable table ####
-table  %>% 
-       kable(caption = "Monte Carlo simulations: 1000 sample paths ", digits = 3) %>%
-       kable_classic(full_width = F, html_font = "Times new roman") 
+
+# Printing the accuracy table
+table %>% 
+  kable(caption = "Monte Carlo simulations: 1000 sample paths ", digits = 3) %>%
+  kable_classic(full_width = F, html_font = "Times new roman") 
 
 
 
-########################################################################
-#################### Optimal models table #############################
-########################################################################
+################################################################################
+######################## Optimal models table ##################################
+################################################################################
 
-##### A final table containing all optimal models of all types visited in this report ####
-conclusion_table <- 
-  fc_ets_optimal %>% 
+# Final table containing all optimal models of all types visited in this report
+conclusion_table <- fc_ets_optimal %>% 
   accuracy(unemployment_test_ts) %>% 
   bind_rows(
-    fc_arima_optimal %>%  accuracy(unemployment_test_ts),
-    fc_dynamic_naive_forecastobject %>%  accuracy(unemployment_test_ts),
-    fc_fourier_table %>% arrange(MASE) %>% slice(1)
+    fc_arima_optimal %>%
+      accuracy(unemployment_test_ts),
+    fc_dynamic_naive_forecastobject %>% 
+      accuracy(unemployment_test_ts),
+    fc_fourier_table %>% 
+      arrange(MASE) %>% 
+      slice(1)
     ) %>% 
   rename("Model" = .model) %>% 
   bind_rows(
@@ -1605,16 +1740,23 @@ conclusion_table <-
                Type = "Test", 
                RMSE = RMSE(vecm_resids),
                MAE =  MAE(vecm_resids),
-               MAPE = fabletools::MAPE(.resid = vecm_resids, .actual = c(unemployment_test$unemployed)),
-               MASE = MASE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12),
-               RMSSE = RMSSE(.resid = vecm_resids, .train = c(unemployment_train_ts$unemployed), .period = 12)),
+               MAPE = fabletools::MAPE(.resid = vecm_resids, 
+                                     .actual = c(unemployment_test$unemployed)),
+               MASE = MASE(.resid = vecm_resids, 
+                           .train = c(unemployment_train_ts$unemployed), 
+                           .period = 12),
+               RMSSE = RMSSE(.resid = vecm_resids, 
+                             .train = c(unemployment_train_ts$unemployed), 
+                             .period = 12)),
     mse_weighted_fc,
-    evaluate_forecast(fc_combined, column = ".mean") %>% slice(1) %>% mutate(Model = "ETS decompositon")
-  ) %>% 
-  dplyr:: select(Model, RMSE, MASE, MAE, MAPE, RMSSE)   %>% 
+    evaluate_forecast(fc_combined, column = ".mean") %>% 
+      slice(1) %>% 
+      mutate(Model = "ETS decompositon")) %>% 
+  dplyr::select(Model, RMSE, MASE, MAE, MAPE, RMSSE) %>% 
   arrange(MASE)
 
 
+# Accuracy table of all optimal models
 conclusion_table %>% 
   kable(caption = "Comparison of all optimal models discussed", digits = 3) %>%
   kable_classic(full_width = F, html_font = "Times new roman") 
