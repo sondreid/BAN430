@@ -624,18 +624,25 @@ ggtsdisplay(difference(multivariate_data$cpi),
             theme = theme_bw(),
             main = "Differenced CPI")
 
+# Export: Autocorrelation plots after difference
+ggtsdisplay(difference(multivariate_data$export), 
+            plot.type = "partial", 
+            lag.max = 24, 
+            theme = theme_bw(),
+            main = "Differenced Export")
+
 ################################################################################
 ############# Stationarity fix: Unemployed, Export & CPI #######################
 ################################################################################
 
 multivariate_data_stationary <- multivariate_data  %>% 
-    mutate(diff_unemployed = difference(unemployed),
-           diff_diff_export                   = difference(export),
-           diff_diff_cpi                      = difference(cpi))  %>% 
+    mutate(diff_unemployed  = difference(unemployed),
+           diff_diff_export = difference(export),
+           diff_diff_cpi    = difference(cpi))  %>% 
     dplyr::select(date, diff_unemployed, diff_diff_export, diff_diff_cpi)  %>% 
     as_tsibble()  
     
- multivariate_data_stationary   %<>% 
+multivariate_data_stationary  %<>% 
     filter(date > yearmonth("2000-02-01"))
 
 
@@ -650,7 +657,7 @@ fit_multivariate_var <- multivariate_data_stationary %>%
 
 # VAR: forecasts
 fc_multivariate_var <- fit_multivariate_var  %>% 
-  forecast::forecast(h = 24)  %>% 
+  forecast(h = 24)  %>% 
   as_tsibble(index = date)
 
 # VAR: forecast adjusted with level
@@ -660,7 +667,7 @@ forecast_level <- fc_multivariate_var %>%
   group_by(.model)  %>% 
   mutate(diff_unemployed = cumsum(diff_unemployed) +  multivariate_data$unemployed %>% tail(1)) ## Add level
 
-# AICc and BIC optimized forecast, VAR(5) and VAR(4)           
+# AICc and BIC optimized forecast VAR(5) and VAR(3), respectively           
 forecast_level  %>% 
   autoplot() +
   autolayer(unemployment_test_ts %>% filter(year(date) >= 2015)) +
@@ -673,22 +680,21 @@ forecast_level  %>%
   scale_colour_manual(values=c("#56B4E9", "orange")) +
   guides(colour = guide_legend(title = "Series"))
 
-### Confirming stationarity BIC optimized
-
+### Confirming stationarity AICc optimized
 tseries::adf.test((fc_multivariate_var %>%  dplyr::filter(.model == "VAR_aicc"))$.mean_diff_unemployed)
-
+### Confirming stationarity BIC optimized
 tseries::adf.test((fc_multivariate_var %>%  dplyr::filter(.model == "VAR_bic"))$.mean_diff_unemployed)
 
 ### Autocorrelation tests
 #Construct new VAR3 and VAR5 models as found by fable
-var3 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 3, type="const")
-var5 <- vars:: VAR(ts(multivariate_data_stationary[,2:4]), p = 5, type="const")
+var3 <- vars::VAR(ts(multivariate_data_stationary[,2:4]), p = 3, type="const")
+var5 <- vars::VAR(ts(multivariate_data_stationary[,2:4]), p = 5, type="const")
 serial.test(var3, lags.pt=24, type="PT.asymptotic")
 serial.test(var5, lags.pt=24, type="PT.asymptotic")
 
-#################################################################################################
-############################## Multivariate foorecast with VECM #################################
-#################################################################################################
+################################################################################
+############################## Multivariate forecast with VECM #################
+################################################################################
 
 VARselect(multivariate_data[,2:4], lag.max = 12, type="const")[["selection"]] # Confirming AR term
 
@@ -703,7 +709,6 @@ summary(ca_jo)
 var_vec <- vec2var(ca_jo, r =1)
 
 
-
 ################# VECM forecast ###############
 fc_vecm <- predict(var_vec, n.ahead = 24)
 fc_var_vec <- data.frame("date"= unemployment_test$date,
@@ -716,7 +721,6 @@ serial.test(var_vec, lags.pt=24, type="PT.asymptotic")
 
 
 ### Confirming stationarity
-
 tseries::adf.test(fc_var_vec$unemployed)
 
 #Calculate residuals for the two VAR models
@@ -743,9 +747,9 @@ fc_var_vec  %>%
          x = "Month",
          y = "Unemployment level")
 
-#################################################################################################
-############################## Performance metrics table #######################################
-#################################################################################################
+################################################################################
+########## Performance metrics table of multivariate forecast ##################
+################################################################################
 
 data.frame(Model = "Multivariate VAR model AICc optimized VAR(5)", 
             Type = "Test", 
@@ -809,7 +813,8 @@ fc_export <- fit_export  %>%
 # CPI: traning accuracy, outcome: ARIMA(2,1,3)(0,0,1)[12]
 fit_cpi  %>% 
   accuracy()  %>% 
-  rename("Model" = .model) %>% 
+  rename("Model" = .model,
+         "Type" = .type) %>% 
   arrange(MASE)  %>% 
   dplyr::select(-ME, -ACF1) %>% 
   kbl(caption = "Model fitting of predictor: CPI", digits = 2) %>%
@@ -819,7 +824,8 @@ fit_cpi  %>%
 # Export: training accuracy, outcome: ARIMA(2,1,2)(0,0,2)[12] w/ drift
 fit_export  %>% 
   accuracy()  %>% 
-  rename("Model" = .model) %>% 
+  rename("Model" = .model,
+         "Type" = .type) %>% 
   arrange(MASE)   %>% 
   dplyr::select(-ME, -ACF1) %>% 
   kbl(caption = "Model fitting of predictor: Export", digits = 2) %>%
@@ -848,7 +854,7 @@ fc_dynamic_arima <- forecast(fit_dynamic_arima,
   as_tibble(index = date)
 
 
-  # NAIVE forecast of CPI and Export
+# NAIVE forecast of CPI and Export
 fc_predictors_naive <- new_data(fit_dynamic_arima  %>% augment(), 24)  %>% 
   left_join(fc_cpi  %>%  filter(.model == "naive"), by = "date")  %>% 
   left_join(fc_export %>%  filter(.model == "naive"), by = "date")  %>% 
@@ -861,7 +867,7 @@ fc_dynamic_naive_forecastobject <- forecast(fit_dynamic_arima,
                              new_data = fc_predictors_naive)  %>% 
   mutate(Model = c("Predictor NAIVE"))
 
-fc_dynamic_naive <- forecast::forecast(fit_dynamic_arima, 
+fc_dynamic_naive <- forecast(fit_dynamic_arima, 
                              new_data = fc_predictors_naive)  %>% 
   mutate(Model = c("Predictor NAIVE")) %>% 
   as_tibble(index = date)
@@ -883,14 +889,23 @@ bind_rows(fc_dynamic_arima,
 
 
 ### Dynamic arima residual plot
-
 Residuals <- (fit_dynamic_arima  %>% augment())$.innov
-
 ggtsdisplay(Residuals, 
             plot.type = "histogram", 
             lag.max = 24, 
             theme = theme_bw(),
             main = "Residuals of dynamic arima model")
+
+
+# Dynamic forecast accuracy
+bind_rows(
+  fc_dynamic_arima_forecastobject %>% accuracy(unemployment_test_ts) %>% mutate(Model = c("ARIMA forecast with ARIMA forecasted predictors")),
+  fc_dynamic_naive_forecastobject %>% accuracy(unemployment_test_ts)  %>% mutate(Model = c("ARIMA forecast with NAIVE forecasted predictors"))) %>% 
+  dplyr::select(-ME, -ACF1, -.model, -.type) %>% 
+  arrange(MASE) %>% 
+  relocate(Model)  %>% 
+  kbl(caption = "Accuracy Dynamic Forecast", digits = 2) %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
 
 
 ###################################################################################################
@@ -914,7 +929,8 @@ fc_deterministic <- fit_deterministic %>%
   forecast(h = 24)
 
 
-## Residuals of linear determinstic trend model
+## Residuals of linear deterministic trend model
+Residuals <- residuals(fit_deterministic)$.resid
 ggtsdisplay(Residuals, 
             plot.type = "histogram", 
             lag.max = 24,
@@ -925,7 +941,7 @@ ggtsdisplay(Residuals,
 fc_deterministic %>% 
   autoplot(unemployment_test_ts %>% filter(year(date) >= 2015), level = 95) +
   labs(title = "Deterministic trend forecast",
-       subtitle = fit_deterministic$Deterministic,
+       subtitle = fit_deterministic$`Deterministic trend`,
        x = "Month",
        y = "Unemployment level") +
   theme_bw() +
