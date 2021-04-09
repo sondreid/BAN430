@@ -58,13 +58,11 @@ library(bvartools)
 checkX13()
 
 
-
 ################################################################################
 ############################ LOAD DATA #########################################
 ################################################################################
 
 load(file = "unemployment_cpi_exports.Rdata")
-
 
 
 ################################################################################
@@ -596,7 +594,7 @@ fit_ets_optimal %>%
 
 
 # Print ETS model's coefficients
-tidy(fit_ets) %>% 
+tidy(fit_ets_optimal) %>% 
     dplyr::select(-.model) %>%
     t() %>% 
     kbl(caption = "Coefficients of ETS(A,Ad,A)", digits = 2) %>%
@@ -613,7 +611,7 @@ fit_ets_optimal %>%
 
 
 # ETS residual plots
-Residuals <- residuals(fit_ets)$.resid
+Residuals <- residuals(fit_ets_optimal)$.resid
 ggtsdisplay(Residuals, 
             plot.type = "histogram", 
             lag.max = 24, 
@@ -982,6 +980,7 @@ fc_var_vec  %>%
 
 
 
+
 ################################################################################
 ########## Performance metrics table of multivariate forecast ##################
 ################################################################################
@@ -1280,7 +1279,7 @@ fit_fourier <- unemployment_train_ts  %>%
 
 # ARIMA model with fourier terms coefficients
 fit_fourier %>% 
-  dplyr::select("Fourier K2") %>% 
+  dplyr::select("Fourier K5") %>% 
   coefficients() %>% 
   dplyr::select(term, estimate) %>% 
   kbl(caption = "Fourier terms", digits = 2) %>%
@@ -1632,10 +1631,9 @@ simulate <- function(fit, R, train_length , h ) {
           as_tsibble(index = date)
         var_multi  <- vars:: VAR(data_x_y[,2:3], 
                                  p  = 1,  
-                                 type = "const")  # VAR(1) model
+                                 type = "const")                     # VAR(1) model
         arima_uni <- data_x_y  %>% 
-          model(Arima = ARIMA(y_e ~ 0 + pdq(1,0,0) + PDQ(0,0,0))) 
-                                                      # ARIMA pdq(1,0,0) model
+          model(Arima = ARIMA(y_e ~ 0 + pdq(1,0,0) + PDQ(0,0,0)))    # ARIMA pdq(1,0,0) model                                                            
         var_resids <-   y_t -  predict(var_multi, n.ahead = h)$fcst$y_e[,1]
         arima_resids <- y_t -  (arima_uni %>% forecast(h = h))$.mean                            
         
@@ -1677,7 +1675,7 @@ wrapperSim <- function(R, sample_size, test_ratio) {
         #' test and training lengths based on an input sample length and
         #' test ratio of the overall series length.
         #' Passes this as parameters to the simulate function
-        cl <- parallel::makeCluster(parallel::detectCores())                                                                                         ### Make clusters
+        cl <- parallel::makeCluster(parallel::detectCores())                     ### Make clusters
         doParallel::registerDoParallel(cl)
         train_length <- floor(sample_size * (1 - test_ratio))
         h <- ceiling(sample_size * test_ratio)
